@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "web": "rm -rf www && mkdir www && cp index.html jspdf.umd.min.js manifest.webmanifest sw.js icon-192.png icon-512.png www/"
+    "web": "rm -rf www && mkdir www && cp -r index.html jspdf.umd.min.js manifest.webmanifest sw.js icon-192.png icon-512.png mediapipe www/"
   },
   "dependencies": {
     "@capacitor/android": "6.2.3",

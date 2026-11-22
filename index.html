@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap" rel="stylesheet">
 <script src="jspdf.umd.min.js"></script>
+<script>window.MP_BASE='mediapipe/';</script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#18254F">
 <link rel="icon" href="icon-192.png">
@@ -64,9 +65,14 @@ button.primary:hover{filter:brightness(.96)}
 button[disabled]{opacity:.45; cursor:not-allowed}
 .grow{flex:1 1 auto}
 input[type=file]{position:absolute; width:1px; height:1px; opacity:0}
-.thumbrow{display:flex; gap:12px; align-items:center; margin-top:12px}
-#thumb{width:96px; height:96px; object-fit:contain; border-radius:8px; border:1.5px solid var(--line); background:#fff; image-rendering:pixelated; flex:none}
-.thumbinfo{font-size:15px; color:var(--ink-soft)}
+.editor{margin-top:12px; display:flex; justify-content:center; background:#fff; border:1.5px solid var(--line); border-radius:10px; padding:6px}
+#thumb{display:block; image-rendering:pixelated; touch-action:auto}
+#thumb.painting{touch-action:none; cursor:crosshair}
+.thumbinfo{font-size:15px; color:var(--ink-soft); margin:8px 0 0}
+.hint{font-size:13px; color:var(--ink-soft); display:block}
+.focus{margin:12px 0 2px}
+.brushbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; margin:12px 0 4px}
+.blabel{font-weight:700; font-size:15px}
 .field{display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:center; margin:10px 0}
 .field label{font-weight:700; font-size:15px}
 .field output{font-variant-numeric:tabular-nums; font-size:15px; color:var(--ink-soft)}
@@ -107,7 +113,7 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
 <body>
 <div class="wrap">
   <header>
-    <h1>Bludiště s <span class="hl">překvapením</span></h1>
+    <h1>Bludiště s překvapením</h1>
     <p>Nahraj fotku a vytiskni z ní bludiště. Kdo ho vyřeší a obtáhne správnou cestu fixou, uvidí, co se v něm schovávalo.</p>
   </header>
 
@@ -119,10 +125,30 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
           <label class="btn grow" for="file">Nahrát fotku<input id="file" type="file" accept="image/*"></label>
           <button id="rand" class="grow" type="button">Náhodný obrázek</button>
         </div>
-        <div class="thumbrow">
+        <div class="editor" id="editorWrap">
           <canvas id="thumb" width="96" height="96" aria-label="Náhled toho, co se v bludišti ukáže"></canvas>
-          <div class="thumbinfo" id="thumbinfo">Takhle zhruba bude vypadat obrázek po vyřešení. Upravuj ho posuvníky níž.</div>
         </div>
+        <p class="thumbinfo" id="thumbinfo">Takhle zhruba bude vypadat obrázek po vyřešení. Upravuj ho posuvníky níž.</p>
+        <details class="focus" open><summary>Zvýraznit hlavní postavu</summary>
+          <div class="row" style="margin-top:10px">
+            <button id="detect" type="button" class="grow">Najít postavu automaticky</button>
+          </div>
+          <p class="hint" id="detectStatus">Najde člověka na fotce a pozadí za ním ztlumí.</p>
+          <div class="field"><label for="bg">Pozadí za postavou</label><output id="bgV"></output><input id="bg" type="range" min="0" max="1" step="0.05" value="1" disabled></div>
+          <div class="field"><label for="vig">Ztlumit okraje</label><output id="vigV"></output><input id="vig" type="range" min="0" max="1" step="0.05" value="0">
+            <span class="hint">Vybledne všechno kromě oválu uprostřed výřezu.</span></div>
+          <div class="brushbar">
+            <span class="blabel">Štětec v náhledu</span>
+            <div class="seg" role="group" aria-label="Štětec">
+              <button type="button" data-brush="off" aria-pressed="true">Vypnutý</button>
+              <button type="button" data-brush="erase" aria-pressed="false">Smazat</button>
+              <button type="button" data-brush="keep" aria-pressed="false">Ponechat</button>
+            </div>
+          </div>
+          <div class="field"><label for="bsize">Velikost štětce</label><output id="bsizeV"></output><input id="bsize" type="range" min="0.02" max="0.2" step="0.01" value="0.07"></div>
+          <div class="row"><button id="clearMask" type="button" class="grow">Zrušit úpravy štětcem</button></div>
+          <span class="hint">Smazat vymaže část obrázku, třeba obrazy na zdi. Ponechat chrání místo před ztlumením.</span>
+        </details>
         <details class="crop"><summary>Výřez fotky</summary>
           <div class="field"><label for="zoom">Přiblížení</label><output id="zoomV"></output><input id="zoom" type="range" min="1" max="4" step="0.05" value="1"></div>
           <div class="field"><label for="px">Posun do stran</label><output id="pxV"></output><input id="px" type="range" min="0" max="1" step="0.01" value="0.5"></div>
@@ -223,7 +249,7 @@ function Heap(){const k=[],v=[];return{
 // Floyd–Steinberg (serpentine) dither: 1 = dark cell
 function dither(t,cw,ch){const e=Float32Array.from(t),D=new Uint8Array(cw*ch);
   for(let y=0;y<ch;y++){const ltr=(y&1)===0;
-    for(let k=0;k<cw;k++){const x=ltr?k:cw-1-k,c=y*cw+x;const v=e[c];const o=v>=0.5?1:0;D[c]=o;const err=v-o;const dx=ltr?1:-1;
+    for(let k=0;k<cw;k++){const x=ltr?k:cw-1-k,c=y*cw+x;let v=e[c];if(!(v===v))v=0;const o=v>=0.5?1:0;D[c]=o;const err=v-o;const dx=ltr?1:-1;
       if(x+dx>=0&&x+dx<cw)e[c+dx]+=err*7/16;
       if(y+1<ch){e[c+cw]+=err*5/16;if(x-dx>=0&&x-dx<cw)e[c+cw-dx]+=err*3/16;if(x+dx>=0&&x+dx<cw)e[c+cw+dx]+=err*1/16}}}
   return D}
@@ -232,7 +258,7 @@ function boxBlur(a,cw,ch,R){const o=new Float32Array(cw*ch);
 
 // connected tree of coarse cells whose shape is a halftone of t
 function buildTree(t,cw,ch,rnd,opts){
-  const N=cw*ch;let tAdj=Float32Array.from(t);const tb=boxBlur(t,cw,ch,2);
+  const N=cw*ch;t=Float32Array.from(t,v=>Number.isFinite(v)?Math.min(1,Math.max(0,v)):0);let tAdj=Float32Array.from(t);const tb=boxBlur(t,cw,ch,2);
   let res=null;const iters=opts.iters==null?3:opts.iters;
   for(let it=0;it<iters;it++){
     const D=dither(tAdj,cw,ch);
@@ -467,7 +493,7 @@ const MARGIN=12; // mm
 const MAX_CELLS=420000;
 const EMOJI=['🐱','🐶','🦊','🐼','🦁','🐸','🐵','🦉','🐢','🐙','🦄','🐧','🐨','🐯','🐮','🐷','🐰','🚀','⭐','🌻','🍄','⚓','🎸','👻','🦖','🐳','🍎','🎃','☂️','🦋'];
 
-const state={src:null,srcName:'',seed:(Math.random()*1e9)>>>0,maze:null,segs:null,poly:null,mm:0,view:'puzzle',zoom:1,stale:false,target:null,dims:null};
+const state={seg:null,erase:null,keep:null,crop:null,brush:'off',src:null,srcName:'',seed:(Math.random()*1e9)>>>0,maze:null,segs:null,poly:null,mm:0,view:'puzzle',zoom:1,stale:false,target:null,dims:null};
 
 // ---------- downloads (claude.ai capability, or normal browser download on your own hosting)
 let downloads=null; const inClaude=!!(window.claude&&window.claude.use);
@@ -475,9 +501,8 @@ if(inClaude){ try{ window.claude.use('downloads').then(d=>{downloads=d}).catch((
 async function saveBlob(name,blob){
   const cap=window.Capacitor;
   if(cap&&cap.isNativePlatform&&cap.isNativePlatform()){
-    // Android app: save to cache and open the share sheet (print, Drive, e-mail...)
     try{
-      const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
+      const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(blob)});
       const {Filesystem,Share}=cap.Plugins;
       const w=await Filesystem.writeFile({path:name,data:b64,directory:'CACHE'});
       await Share.share({title:name,url:w.uri,dialogTitle:'Uložit nebo vytisknout PDF'});
@@ -504,7 +529,7 @@ function setSourceFromImage(img,name){
   const w=Math.max(1,Math.round((img.naturalWidth||img.width)*k)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*k));
   const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
   x.fillStyle='#fff';x.fillRect(0,0,w,h);x.imageSmoothingQuality='high';x.drawImage(img,0,0,w,h);
-  state.src=c;state.srcName=name;
+  state.src=c;state.srcName=name;newLayers();
 }
 function randomEmoji(){
   const e=EMOJI[(Math.random()*EMOJI.length)|0];
@@ -513,14 +538,26 @@ function randomEmoji(){
   x.textAlign='center';x.textBaseline='middle';
   x.font='460px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif';
   x.fillText(e,300,325);
-  state.src=c;state.srcName='náhodný obrázek';
+  state.src=c;state.srcName='náhodný obrázek';newLayers();
+}
+
+function newLayers(){
+  const mk=()=>{const c=document.createElement('canvas');c.width=state.src.width;c.height=state.src.height;return c};
+  state.erase=mk();state.keep=mk();state.seg=null;
+  if($('bg')){$('bg').value=1;$('bg').disabled=true;$('detectStatus').textContent='Najde člověka na fotce a pozadí za ním ztlumí.'}
+}
+// read one channel of a layer, cropped like the picture, at cw×ch (0..1)
+function sampleLayer(layer,cw,ch,crop,channel){
+  const c=document.createElement('canvas');c.width=cw;c.height=ch;const x=c.getContext('2d',{willReadFrequently:true});
+  x.imageSmoothingQuality='high';x.drawImage(layer,crop.sx,crop.sy,crop.sw,crop.sh,0,0,cw,ch);
+  const d=x.getImageData(0,0,cw,ch).data;const o=new Float32Array(cw*ch);for(let i=0;i<o.length;i++)o[i]=d[i*4+channel]/255;return o;
 }
 
 // ---------- settings
 const P=()=>({
   contrast:+$('contrast').value, bright:+$('bright').value, sharp:+$('sharp').value, maxcov:+$('maxcov').value,
   invert:$('invert').checked, fill:$('fill').checked, paper:$('paper').value, orient:$('orient').value,
-  cell:+$('cell').value, branch:+$('branch').value, zoom:+$('zoom').value, px:+$('px').value, py:+$('py').value });
+  cell:+$('cell').value, branch:+$('branch').value, zoom:+$('zoom').value, px:+$('px').value, py:+$('py').value, bg:+$('bg').value, vig:+$('vig').value });
 
 function computeDims(p){
   const [a,b]=PAPERS[p.paper];const asp=state.src?state.src.width/state.src.height:0.75;
@@ -542,7 +579,7 @@ function computeTarget(p,cw,ch){
   let sw=src.width,sh=src.height;
   if(p.fill){const ta=cw/ch,sa=sw/sh;if(sa>ta)sw=sh*ta;else sh=sw/ta}
   sw/=p.zoom;sh/=p.zoom;
-  const sx=(src.width-sw)*p.px, sy=(src.height-sh)*p.py;
+  const sx=(src.width-sw)*p.px, sy=(src.height-sh)*p.py;state.crop={sx,sy,sw,sh};
   x.drawImage(src,sx,sy,sw,sh,0,0,w,h);
   const d=x.getImageData(0,0,w,h).data;const N=cw*ch;let L=new Float32Array(N);
   for(let y=0;y<ch;y++)for(let xx=0;xx<cw;xx++){let s=0;
@@ -555,8 +592,21 @@ function computeTarget(p,cw,ch){
   if(p.sharp>0){const B=new Float32Array(N);
     for(let y=0;y<ch;y++)for(let xx=0;xx<cw;xx++){let s=0,n=0;for(let dy=-1;dy<=1;dy++){const yy=y+dy;if(yy<0||yy>=ch)continue;for(let dx=-1;dx<=1;dx++){const x2=xx+dx;if(x2<0||x2>=cw)continue;s+=L[yy*cw+x2];n++}}B[y*cw+xx]=s/n}
     for(let i=0;i<N;i++)L[i]=L[i]+p.sharp*(L[i]-B[i]);}
+  // focus: background dimming (person mask), vignette, brush layers
+  const crop=state.crop;
+  const er=state.erase?sampleLayer(state.erase,cw,ch,crop,3):null;
+  const kp=state.keep?sampleLayer(state.keep,cw,ch,crop,3):null;
+  const sg=state.seg&&p.bg<1?sampleLayer(state.seg,cw,ch,crop,3):null;
   const t=new Float32Array(N);
-  for(let i=0;i<N;i++){let v=(L[i]-0.5)*p.contrast+0.5+p.bright;v=Math.min(1,Math.max(0,v));let dk=1-v;if(p.invert)dk=1-dk;t[i]=Math.pow(dk,0.8)*p.maxcov}
+  for(let y=0;y<ch;y++)for(let xx=0;xx<cw;xx++){const i=y*cw+xx;
+    let v=(L[i]-0.5)*p.contrast+0.5+p.bright;v=Math.min(1,Math.max(0,v));let dk=1-v;if(p.invert)dk=1-dk;
+    let f=1;
+    if(sg)f*=p.bg+(1-p.bg)*Math.min(1,sg[i]*1.15);
+    if(p.vig>0){const u=((xx+0.5)/cw-0.5)/0.4,w=((y+0.5)/ch-0.5)/0.47;const d=Math.sqrt(u*u+w*w);const fd=Math.min(1,Math.max(0,(d-0.85)/0.55));f*=1-p.vig*fd*fd*(3-2*fd)}
+    if(er)f*=1-er[i];
+    if(kp)f=Math.max(f,kp[i]);
+    let val=Math.pow(Math.max(0,dk),0.8)*p.maxcov*f;
+    t[i]=Number.isFinite(val)?val:0;}
   return t;
 }
 
@@ -571,6 +621,8 @@ function updateThumb(){
   const th=$('thumb');th.width=cw;th.height=ch;const x=th.getContext('2d');const im=x.createImageData(cw,ch);
   for(let i=0;i<cw*ch;i++){const v=255-Math.round(t[i]*255);im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}
   x.putImageData(im,0,0);
+  const avail=Math.max(120,$('editorWrap').clientWidth-14),maxH=Math.min(440,window.innerHeight*0.55);
+  const k=Math.min(avail/cw,maxH/ch);th.style.width=Math.round(cw*k)+'px';th.style.height=Math.round(ch*k)+'px';
 }
 
 function markStale(){ if(state.maze&&!state.stale){state.stale=true;setStatus('Nastavení se změnilo. Klikni na „Vytvořit bludiště“ pro novou verzi.')} }
@@ -583,7 +635,10 @@ function generate(){
     try{
       const p=P();updateThumb();const dm=state.dims;
       const t0=performance.now();
-      const m=generateMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch});
+      let m=generateMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch});
+      // safety net: if the picture got lost, rebuild without tone compensation
+      let want=0;for(const v of state.target)want+=v;want*=4;
+      if(want>400&&m.path.length<want*0.3){console.warn('coverage low',m.path.length,want);m=generateMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch,iters:1})}
       state.maze=m;state.segs=wallSegments(m);state.poly=solutionPolyline(m);state.mm=p.cell;state.paper=p.paper;state.dm=dm;
       state.stale=false;
       const len=m.path.length*p.cell/1000;
@@ -621,8 +676,8 @@ function render(){
     x.beginPath();const s=state.segs;for(let i=0;i<s.length;i+=4){x.moveTo(s[i]*sc,s[i+1]*sc);x.lineTo(s[i+2]*sc,s[i+3]*sc)}x.stroke();
   }
   if(state.view!=='puzzle'){
-    x.strokeStyle=state.view==='solution'?'#E0458B':'#111';x.lineWidth=sc*(state.view==='solution'?0.5:0.94);
-    x.lineJoin='round';x.lineCap='round';x.beginPath();const pl=state.poly;x.moveTo(pl[0][0]*sc,pl[0][1]*sc);
+    x.strokeStyle=state.view==='solution'?'#E0458B':'#111';x.lineWidth=sc*(state.view==='solution'?0.5:1.0);
+    if(state.view==='solution'){x.lineJoin='round';x.lineCap='round'}else{x.lineJoin='miter';x.lineCap='square'}x.beginPath();const pl=state.poly;x.moveTo(pl[0][0]*sc,pl[0][1]*sc);
     for(let i=1;i<pl.length;i++)x.lineTo(pl[i][0]*sc,pl[i][1]*sc);x.stroke();
   }
   // markers
@@ -681,6 +736,9 @@ function syncOutputs(){
   $('brightV').textContent=(+$('bright').value>0?'+':'')+fmt(+$('bright').value*100)+' %';
   $('sharpV').textContent=fmt(+$('sharp').value,1);
   $('maxcovV').textContent=fmt(+$('maxcov').value*100)+' %';
+  $('bgV').textContent=$('bg').disabled?'beze změny':fmt(+$('bg').value*100)+' %';
+  $('vigV').textContent=+$('vig').value===0?'vypnuto':fmt(+$('vig').value*100)+' %';
+  $('bsizeV').textContent=fmt(+$('bsize').value*100)+' %';
   $('zoomV').textContent=fmt(+$('zoom').value,1)+'×';
   $('pxV').textContent=fmt(+$('px').value*100)+' %';$('pyV').textContent=fmt(+$('py').value*100)+' %';
   $('cellV').textContent=fmt(+$('cell').value,1)+' mm';
@@ -689,7 +747,7 @@ function syncOutputs(){
 }
 let thumbTimer=0;
 function onSetting(){syncOutputs();clearTimeout(thumbTimer);thumbTimer=setTimeout(updateThumb,60);markStale()}
-['contrast','bright','sharp','maxcov','cell','branch','zoom','px','py'].forEach(id=>$(id).addEventListener('input',onSetting));
+['contrast','bright','sharp','maxcov','cell','branch','zoom','px','py','bg','vig','bsize'].forEach(id=>$(id).addEventListener('input',onSetting));
 ['invert','fill','paper','orient'].forEach(id=>$(id).addEventListener('change',onSetting));
 document.querySelectorAll('[data-cell]').forEach(bt=>bt.addEventListener('click',()=>{$('cell').value=bt.dataset.cell;onSetting()}));
 
@@ -702,6 +760,54 @@ $('file').addEventListener('change',e=>{
 });
 $('rand').addEventListener('click',()=>{randomEmoji();resetCrop();$('thumbinfo').textContent='Náhodný obrázek. Další dostaneš dalším kliknutím.';state.seed=(Math.random()*1e9)>>>0;updateThumb();generate()});
 $('gen').addEventListener('click',generate);
+
+// ---------- brush on the preview
+document.querySelectorAll('[data-brush]').forEach(bt=>bt.addEventListener('click',()=>{
+  state.brush=bt.dataset.brush;document.querySelectorAll('[data-brush]').forEach(b=>b.setAttribute('aria-pressed',String(b===bt)));
+  $('thumb').classList.toggle('painting',state.brush!=='off')}));
+let painting=false,lastPt=null,rafPending=false;
+function toSrc(e){const r=$('thumb').getBoundingClientRect(),c=state.crop;
+  return [c.sx+(e.clientX-r.left)/r.width*c.sw, c.sy+(e.clientY-r.top)/r.height*c.sh]}
+function stroke(a,b){const rad=+$('bsize').value*state.crop.sw/2;
+  const paint=state.brush==='erase'?state.erase:state.keep, wipe=state.brush==='erase'?state.keep:state.erase;
+  for(const [cv,mode] of [[paint,'source-over'],[wipe,'destination-out']]){const x=cv.getContext('2d');
+    x.globalCompositeOperation=mode;x.strokeStyle='#000';x.fillStyle='#000';x.lineWidth=rad*2;x.lineCap='round';
+    x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke();x.beginPath();x.arc(b[0],b[1],rad,0,Math.PI*2);x.fill();x.globalCompositeOperation='source-over'}
+  if(!rafPending){rafPending=true;requestAnimationFrame(()=>{rafPending=false;updateThumb()})}
+  markStale();}
+$('thumb').addEventListener('pointerdown',e=>{if(state.brush==='off'||!state.crop)return;e.preventDefault();painting=true;$('thumb').setPointerCapture(e.pointerId);lastPt=toSrc(e);stroke(lastPt,lastPt)});
+$('thumb').addEventListener('pointermove',e=>{if(!painting)return;e.preventDefault();const p=toSrc(e);stroke(lastPt,p);lastPt=p});
+['pointerup','pointercancel'].forEach(n=>$('thumb').addEventListener(n,()=>{painting=false}));
+$('clearMask').addEventListener('click',()=>{if(!state.src)return;for(const c of [state.erase,state.keep])c.getContext('2d').clearRect(0,0,c.width,c.height);updateThumb();markStale()});
+
+// ---------- automatic person detection (MediaPipe selfie segmentation)
+const MP_BASE=window.MP_BASE||'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/';
+let segmenter=null;
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('script'));document.head.appendChild(s)})}
+async function getSegmenter(){
+  if(segmenter)return segmenter;
+  if(!window.SelfieSegmentation)await loadScript(MP_BASE+'selfie_segmentation.js');
+  const ss=new window.SelfieSegmentation({locateFile:f=>MP_BASE+f});
+  ss.setOptions({modelSelection:0,selfieMode:false});
+  await Promise.race([ss.initialize(),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),30000))]);
+  segmenter=ss;return ss;
+}
+$('detect').addEventListener('click',async()=>{
+  if(!state.src)return;const st=$('detectStatus');$('detect').disabled=true;st.textContent='Hledám postavu… (poprvé se stahuje asi 6 MB)';
+  try{
+    const ss=await getSegmenter();
+    const result=await new Promise((res,rej)=>{ss.onResults(res);ss.send({image:state.src}).catch(rej);setTimeout(()=>rej(new Error('timeout')),30000)});
+    const c=document.createElement('canvas');c.width=state.src.width;c.height=state.src.height;const x=c.getContext('2d',{willReadFrequently:true});
+    x.drawImage(result.segmentationMask,0,0,c.width,c.height);
+    // soften the mask edge a little
+    const d=x.getImageData(0,0,c.width,c.height).data;let on=0;for(let i=3;i<d.length;i+=4)if(d[i]>128)on++;
+    const frac=on/(d.length/4);
+    if(frac<0.02){st.textContent='Na fotce jsem nenašel člověka. Pozadí můžeš ztlumit štětcem nebo posuvníkem Ztlumit okraje.';state.seg=null;$('bg').disabled=true}
+    else{state.seg=c;$('bg').disabled=false;$('bg').value=0.15;st.textContent=`Postava nalezena (${fmt(frac*100)} % fotky). Pozadí je ztlumené, sílu nastavíš posuvníkem.`}
+    syncOutputs();updateThumb();markStale();
+  }catch(e){console.warn(e);st.textContent='Automatické hledání se tady nepodařilo spustit. Ve verzi na GitHubu funguje, jinak použij štětec.'}
+  $('detect').disabled=false;
+});
 $('reseed').addEventListener('click',()=>{state.seed=(Math.random()*1e9)>>>0;generate()});
 document.querySelectorAll('[data-view]').forEach(bt=>bt.addEventListener('click',()=>{
   state.view=bt.dataset.view;document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===bt)));render()}));
