@@ -35,6 +35,7 @@
 }
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
 body{
   margin:0; color:var(--ink); background-color:var(--paper);
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
@@ -134,6 +135,26 @@ select{font:inherit; padding:8px 10px; border-radius:10px; border:1.5px solid va
 details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32px}
 .crop{margin:12px 0 2px}
 .crop .hint{font-size:13px; color:var(--ink-soft)}
+
+/* ---- workspace: steps side by side on wide screens ---- */
+.workspace{display:grid; gap:14px; grid-template-columns:minmax(0,1fr); grid-template-areas:"pv" "src" "crop" "adj" "maze"}
+@media (min-width:760px){ .workspace{grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-areas:"pv src" "crop adj" "maze maze"} }
+@media (min-width:1200px){
+  .workspace{grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:min-content 1fr; grid-template-areas:"pv crop adj maze" "src crop adj maze"; align-items:start}
+  .workspace .step{max-height:calc(100vh - 150px); overflow:auto}
+  .pv{position:static!important; border:1.5px solid var(--line)!important; border-radius:14px}
+}
+.step h2{display:flex; align-items:center; gap:10px}
+.num{display:inline-grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--marker); color:var(--marker-ink); font-size:15px; font-weight:800; flex:none}
+details.sub{margin-top:14px; border-top:1.5px solid var(--line); padding-top:10px}
+details.sub>summary{cursor:pointer; font-weight:700; min-height:32px; display:flex; align-items:center}
+#cropcv{display:block; max-width:100%; touch-action:none; cursor:crosshair}
+.stage{margin-top:18px}
+.toolbar{align-items:center}
+.stagegrid{display:grid; gap:14px; grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){ .stagegrid{grid-template-columns:minmax(0,1fr) 300px; align-items:start} .stageside .exports{grid-template-columns:1fr} }
+.wrap{max-width:1600px}
+header{margin:4px 0 14px}
 @media (prefers-reduced-motion: reduce){*{transition:none!important; animation:none!important}}
 </style>
 </head>
@@ -144,28 +165,24 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
     <p>Nahraj fotku a vytiskni z ní bludiště. Kdo ho vyřeší a obtáhne správnou cestu fixou, uvidí, co se v něm schovávalo.</p>
   </header>
 
-  <div class="layout">
-    <section class="controls" aria-label="Nastavení">
-      <div class="pv" id="pv">
-        <div class="editor" id="editorWrap">
-          <figure class="pvfig"><canvas id="thumbGray" width="96" height="96" aria-label="Upravená černobílá fotka"></canvas><figcaption>Fotka</figcaption></figure>
-          <figure class="pvfig"><canvas id="thumb" width="96" height="96" aria-label="Obrázek, který vznikne po vyřešení"></canvas><figcaption>Po vyřešení</figcaption></figure>
-        </div>
+  <div class="workspace">
+    <div class="pv" id="pv" style="grid-area:pv">
+      <div class="editor" id="editorWrap">
+        <figure class="pvfig"><canvas id="thumbGray" width="96" height="96" aria-label="Upravená černobílá fotka"></canvas><figcaption>Fotka</figcaption></figure>
+        <figure class="pvfig"><canvas id="thumb" width="96" height="96" aria-label="Obrázek, který vznikne po vyřešení"></canvas><figcaption>Po vyřešení</figcaption></figure>
       </div>
+    </div>
 
-      <div class="panel">
-        <h2>Obrázek</h2>
-        <div class="row">
-          <label class="btn grow" for="file">Nahrát fotku<input id="file" type="file" accept="image/*"></label>
-          <button id="drawBtn" class="grow" type="button">Nakreslit</button>
-          <button id="rand" class="grow" type="button">Náhodný</button>
-        </div>
+    <section class="panel step" style="grid-area:src" aria-labelledby="h1s">
+      <h2 id="h1s"><span class="num">1</span>Obrázek</h2>
+      <div class="row">
+        <label class="btn grow" for="file">Nahrát fotku<input id="file" type="file" accept="image/*"></label>
+        <button id="drawBtn" class="grow" type="button">Nakreslit</button>
+        <button id="rand" class="grow" type="button">Náhodný</button>
       </div>
-
-      <details class="panel fold" id="drawPanel" hidden open>
-        <summary><h2>Kreslení</h2></summary>
-        <div class="seg segfull" role="group" aria-label="Nástroj kreslení">
-          <button type="button" data-dtool="off" aria-pressed="false">Vypnuto</button>
+      <div id="drawPanel" hidden>
+        <div class="seg segfull" role="group" aria-label="Nástroj kreslení" style="margin-top:12px">
+          <button type="button" data-dtool="off" aria-pressed="false">Posouvat</button>
           <button type="button" data-dtool="pen" aria-pressed="true">Pero</button>
           <button type="button" data-dtool="eraser" aria-pressed="false">Guma</button>
         </div>
@@ -175,7 +192,7 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
         <label class="blabel" for="dtext" style="display:block;margin-top:14px">Text</label>
         <textarea id="dtext" rows="2" placeholder="Napiš text, třeba jméno"></textarea>
         <div class="row" style="margin-top:8px">
-          <select id="dfont" aria-label="Písmo" style="flex:1 1 140px;width:auto">
+          <select id="dfont" aria-label="Písmo" style="flex:1 1 120px;width:auto">
             <option value="800 1px 'Bricolage Grotesque', system-ui, sans-serif">Tučné</option>
             <option value="700 1px 'Atkinson Hyperlegible', system-ui, sans-serif">Obyčejné</option>
             <option value="700 1px Georgia, 'Times New Roman', serif">Patkové</option>
@@ -183,122 +200,118 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
           </select>
           <button id="dText" type="button" class="grow">Vložit text</button>
         </div>
-        <p class="hint">Text se vloží doprostřed přes celou šířku a pak kolem něj můžeš kreslit. Tlusté čáry a velké písmo vyjdou v bludišti nejlíp. Když chceš scrollovat přes plochu, přepni na Vypnuto.</p>
-      </details>
-
-      <details class="panel fold" open>
-        <summary><h2>Oříznutí a štětec</h2></summary>
-        <div class="seg segfull" role="group" aria-label="Nástroj">
-          <button type="button" data-tool="off" aria-pressed="true">Vypnuto</button>
-          <button type="button" data-tool="crop" aria-pressed="false">Oříznout</button>
-          <button type="button" data-tool="erase" aria-pressed="false">Smazat</button>
-          <button type="button" data-tool="keep" aria-pressed="false">Ponechat</button>
-        </div>
-        <div class="paintwrap"><canvas id="paint" width="10" height="10" aria-label="Plocha pro oříznutí a kreslení štětcem"></canvas></div>
-        <p class="hint" id="toolhint">Vyber nástroj. Když je vypnutý, plochou jde normálně posouvat.</p>
-        <div class="row" id="cropBtns">
-          <button id="autoCrop" type="button" class="grow">Oříznout na obsah</button>
-          <button id="fullCrop" type="button" class="grow">Celá fotka</button>
-        </div>
-        <div id="brushOpts">
-          <div class="field"><label for="bsize">Velikost štětce</label><output id="bsizeV"></output><input id="bsize" type="range" min="0.02" max="0.2" step="0.01" value="0.07"></div>
-          <div class="row"><button id="clearMask" type="button" class="grow">Zrušit úpravy štětcem</button></div>
-        </div>
-      </details>
-
-      <details class="panel fold">
-        <summary><h2>Úprava obrázku</h2></summary>
-        <div class="field"><label for="contrast">Kontrast</label><output id="contrastV"></output><input id="contrast" type="range" min="0.5" max="2.5" step="0.05" value="1.25"></div>
-        <div class="field"><label for="bright">Jas</label><output id="brightV"></output><input id="bright" type="range" min="-0.5" max="0.5" step="0.02" value="0.06"></div>
-        <div class="field"><label for="sharp">Ostrost detailů</label><output id="sharpV"></output><input id="sharp" type="range" min="0" max="2" step="0.1" value="0.7"></div>
-        <div class="field"><label for="maxcov">Sytost tmavých míst</label><output id="maxcovV"></output><input id="maxcov" type="range" min="0.6" max="1" step="0.01" value="0.9">
-          <span class="hint">Pod 100 % zůstanou i v tmavých místech slepé odbočky, takže je bludiště těžší.</span></div>
-        <label class="check"><input id="invert" type="checkbox"> Obrátit světlé a tmavé</label>
-      </details>
-
-      <details class="panel fold">
-        <summary><h2>Hlavní postava</h2></summary>
-        <div class="row"><button id="detect" type="button" class="grow">Najít postavu automaticky</button></div>
-        <p class="hint" id="detectStatus">Najde člověka na fotce a pozadí za ním ztlumí.</p>
-        <div class="field"><label for="bg">Pozadí za postavou</label><output id="bgV"></output><input id="bg" type="range" min="0" max="1" step="0.05" value="1" disabled></div>
-        <div class="field"><label for="vig">Ztlumit okraje</label><output id="vigV"></output><input id="vig" type="range" min="0" max="1" step="0.05" value="0">
-          <span class="hint">Vybledne všechno kromě oválu uprostřed výřezu.</span></div>
-      </details>
-
-      <details class="panel fold" open>
-        <summary><h2>Bludiště</h2></summary>
-        <div class="selects">
-          <div><label for="paper">Papír</label>
-            <select id="paper"><option>A4</option><option>A3</option><option>A2</option><option value="Letter">Letter</option></select></div>
-          <div><label for="orient">Orientace</label>
-            <select id="orient"><option value="auto">Podle obrázku</option><option value="p">Na výšku</option><option value="l">Na šířku</option></select></div>
-        </div>
-        <div class="selects one"><div><label for="shape">Tvar bludiště</label>
-          <select id="shape"><option value="image">Podle obrázku</option><option value="square">Čtverec</option><option value="paper">Celý papír</option><option value="34">Obdélník na výšku (3:4)</option><option value="43">Obdélník na šířku (4:3)</option></select></div></div>
-        <div class="field"><label for="cols">Políček na šířku</label><output id="colsV"></output><input id="cols" type="range" min="40" max="600" step="2" value="160">
-          <span class="hint">Víc políček znamená větší bludiště a ostřejší obrázek.</span></div>
-        <div class="chips" role="group" aria-label="Předvolby velikosti">
-          <button type="button" data-cols="80">Rychlovka</button>
-          <button type="button" data-cols="140">Normální</button>
-          <button type="button" data-cols="200">Velké</button>
-          <button type="button" data-cols="280">Masivní</button>
-          <button type="button" data-cols="450">Na tablet</button>
-        </div>
-        <div class="field"><label for="turns">Odbočky ze správné cesty</label><output id="turnsV"></output><input id="turns" type="range" min="0" max="1" step="0.05" value="0.7">
-          <span class="hint">Víc odboček znamená víc míst, kde se dá na správné cestě splést. V úplně tmavých místech obrázku pomůže ještě snížit Sytost tmavých míst.</span></div>
-        <div class="field"><label for="branch">Slepé uličky</label><output id="branchV"></output><input id="branch" type="range" min="0" max="1" step="0.05" value="0.75">
-          <span class="hint">Vlevo krátké a časté odbočky, vpravo dlouhé klikaté chodby.</span></div>
-        <p class="hint" style="margin-top:12px">Start a cíl jsou na okrajích bludiště, co nejdál od sebe. Vybírají se místa, kde je obrázek okraji nejblíž, takže čára k okraji je co nejkratší, a když obrázek sahá až k okraji, není tam žádná.</p>
-        <label class="check"><input id="camo" type="checkbox" checked> Skrýt obrázek v zadání</label>
-        <p class="hint">Slepé uličky se kreslí stejným stylem jako správná cesta, takže podle bludiště není poznat, co v něm je.</p>
-        <p class="stats" id="gridinfo"></p>
-      </details>
-
-      <div class="row">
-        <button id="gen" class="primary grow" type="button">Vytvořit bludiště</button>
-        <button id="reseed" class="grow" type="button">Jiná varianta</button>
+        <p class="hint">Tlusté čáry a velké písmo vyjdou v bludišti nejlíp.</p>
       </div>
     </section>
 
-    <section class="stage" aria-label="Náhled">
-      <div class="panel">
-        <div class="toolbar">
-          <div class="seg" role="group" aria-label="Zobrazení">
-            <button type="button" data-view="puzzle" aria-pressed="true">Zadání</button>
-            <button type="button" data-view="solution" aria-pressed="false">Řešení</button>
-            <button type="button" data-view="reveal" aria-pressed="false">Výsledek</button>
-          </div>
-          <div class="seg" role="group" aria-label="Přiblížení">
-            <button type="button" data-zoom="1" aria-pressed="true">Celé</button>
-            <button type="button" data-zoom="2.5" aria-pressed="false">2,5×</button>
-            <button type="button" data-zoom="6" aria-pressed="false">6×</button>
-          </div>
+    <section class="panel step" style="grid-area:crop" aria-labelledby="h2s">
+      <h2 id="h2s"><span class="num">2</span>Oříznutí a tvar</h2>
+      <div class="selects one"><div><label for="shape">Tvar bludiště</label>
+        <select id="shape"><option value="image">Podle obrázku</option><option value="square">Čtverec</option><option value="paper">Celý papír</option><option value="34">Obdélník na výšku (3:4)</option><option value="43">Obdélník na šířku (4:3)</option></select></div></div>
+      <div class="paintwrap"><canvas id="cropcv" width="10" height="10" aria-label="Oříznutí fotky"></canvas></div>
+      <p class="hint">Táhni za rohy nebo hrany rámečku, uvnitř ho posuneš. Stránku posuneš tažením mimo obrázek.</p>
+      <div class="row">
+        <button id="autoCrop" type="button" class="grow">Oříznout na obsah</button>
+        <button id="fullCrop" type="button" class="grow">Celá fotka</button>
+      </div>
+    </section>
+
+    <section class="panel step" style="grid-area:adj" aria-labelledby="h3s">
+      <h2 id="h3s"><span class="num">3</span>Úpravy</h2>
+      <div class="field"><label for="contrast">Kontrast</label><output id="contrastV"></output><input id="contrast" type="range" min="0.5" max="2.5" step="0.05" value="1.25"></div>
+      <div class="field"><label for="bright">Jas</label><output id="brightV"></output><input id="bright" type="range" min="-0.5" max="0.5" step="0.02" value="0.06"></div>
+      <div class="field"><label for="sharp">Ostrost detailů</label><output id="sharpV"></output><input id="sharp" type="range" min="0" max="2" step="0.1" value="0.7"></div>
+      <div class="field"><label for="maxcov">Sytost tmavých míst</label><output id="maxcovV"></output><input id="maxcov" type="range" min="0.6" max="1" step="0.01" value="0.9"></div>
+      <label class="check"><input id="invert" type="checkbox"> Obrátit světlé a tmavé</label>
+      <details class="sub">
+        <summary>Zvýraznit postavu</summary>
+        <div class="row" style="margin-top:10px"><button id="detect" type="button" class="grow">Najít postavu automaticky</button></div>
+        <p class="hint" id="detectStatus">Najde člověka na fotce a pozadí za ním ztlumí.</p>
+        <div class="field"><label for="bg">Pozadí za postavou</label><output id="bgV"></output><input id="bg" type="range" min="0" max="1" step="0.05" value="1" disabled></div>
+        <div class="field"><label for="vig">Ztlumit okraje</label><output id="vigV"></output><input id="vig" type="range" min="0" max="1" step="0.05" value="0"></div>
+      </details>
+      <details class="sub">
+        <summary>Štětec: smazat nebo ponechat části</summary>
+        <div class="seg segfull" role="group" aria-label="Štětec" style="margin-top:10px">
+          <button type="button" data-tool="off" aria-pressed="true">Posouvat</button>
+          <button type="button" data-tool="erase" aria-pressed="false">Smazat</button>
+          <button type="button" data-tool="keep" aria-pressed="false">Ponechat</button>
         </div>
+        <div class="paintwrap"><canvas id="paint" width="10" height="10" aria-label="Plocha pro štětec"></canvas></div>
+        <p class="hint" id="toolhint"></p>
+        <div class="field"><label for="bsize">Velikost štětce</label><output id="bsizeV"></output><input id="bsize" type="range" min="0.02" max="0.2" step="0.01" value="0.07"></div>
+        <div class="row"><button id="clearMask" type="button" class="grow">Zrušit úpravy štětcem</button></div>
+      </details>
+    </section>
+
+    <section class="panel step" style="grid-area:maze" aria-labelledby="h4s">
+      <h2 id="h4s"><span class="num">4</span>Bludiště</h2>
+      <div class="selects">
+        <div><label for="paper">Papír</label>
+          <select id="paper"><option>A4</option><option>A3</option><option>A2</option><option value="Letter">Letter</option></select></div>
+        <div><label for="orient">Orientace</label>
+          <select id="orient"><option value="auto">Automaticky</option><option value="p">Na výšku</option><option value="l">Na šířku</option></select></div>
+      </div>
+      <div class="field"><label for="cols">Políček na šířku</label><output id="colsV"></output><input id="cols" type="range" min="40" max="600" step="2" value="160"></div>
+      <div class="chips" role="group" aria-label="Předvolby velikosti">
+        <button type="button" data-cols="80">Rychlovka</button>
+        <button type="button" data-cols="140">Normální</button>
+        <button type="button" data-cols="200">Velké</button>
+        <button type="button" data-cols="280">Masivní</button>
+        <button type="button" data-cols="450">Na tablet</button>
+      </div>
+      <div class="field"><label for="turns">Odbočky ze správné cesty</label><output id="turnsV"></output><input id="turns" type="range" min="0" max="1" step="0.05" value="0.7"></div>
+      <div class="field"><label for="branch">Slepé uličky</label><output id="branchV"></output><input id="branch" type="range" min="0" max="1" step="0.05" value="0.75"></div>
+      <label class="check"><input id="camo" type="checkbox" checked> Skrýt obrázek v zadání</label>
+      <p class="stats" id="gridinfo"></p>
+      <div class="row" style="margin-top:12px">
+        <button id="gen" class="primary grow" type="button">Vytvořit bludiště</button>
+        <button id="reseed" class="grow" type="button" hidden>Jiná varianta</button>
+      </div>
+    </section>
+  </div>
+
+  <section class="stage" id="stage" aria-label="Hotové bludiště" hidden>
+    <div class="panel">
+      <div class="toolbar">
+        <h2 style="margin:0;align-self:center"><span class="num">5</span>Hotové bludiště</h2>
+        <div class="seg" role="group" aria-label="Zobrazení">
+          <button type="button" data-view="puzzle" aria-pressed="true">Zadání</button>
+          <button type="button" data-view="solution" aria-pressed="false">Řešení</button>
+          <button type="button" data-view="reveal" aria-pressed="false">Výsledek</button>
+        </div>
+        <div class="seg" role="group" aria-label="Přiblížení">
+          <button type="button" data-zoom="1" aria-pressed="true">Celé</button>
+          <button type="button" data-zoom="2.5" aria-pressed="false">2,5×</button>
+          <button type="button" data-zoom="6" aria-pressed="false">6×</button>
+        </div>
+      </div>
+      <div class="stagegrid">
         <div class="viewport" id="vp">
           <canvas id="cv" width="10" height="10" aria-label="Náhled bludiště"></canvas>
           <div class="busy" id="busy">Stavím bludiště…</div>
         </div>
-        <p class="status" id="status" role="status"></p>
-        <p class="stats" id="mazeinfo"></p>
-        <div class="exports">
-          <button id="pdfPuzzle" type="button" disabled>PDF se zadáním</button>
-          <button id="pdfSolution" type="button" disabled>PDF s řešením</button>
-          <button id="pdfBoth" type="button" disabled>Obojí v jednom PDF</button>
-          <button id="pdfShare" type="button" hidden disabled>Sdílet / vytisknout PDF</button>
-        </div>
-        <div class="tips">
-          <details>
-            <summary>Jak na to, aby obrázek vynikl</summary>
-            <p>Cestu nejdřív hledej tužkou nebo světlou pastelkou. Špatné odbočky klidně zakresli, obrázku nevadí.</p>
-            <p>Správnou cestu nakonec obtáhni tlustou černou fixou, ideálně tak širokou, jako je chodba. Čím víc chodbu vyplní, tím výraznější obrázek.</p>
-            <p>Nejlépe fungují kontrastní fotky s obličejem přes většinu záběru a světlým pozadím. Šipka dovnitř je start, šipka ven je cíl.</p>
-            <p>U „Masivní“ velikosti se hodí tenký liner na hledání cesty a fix o šířce zhruba 1 mm na obtažení.</p>
-            <p>Při tisku nastav „Skutečná velikost“ (100 %), ne „Přizpůsobit stránce“.</p>
-          </details>
+        <div class="stageside">
+          <p class="stats" id="mazeinfo"></p>
+          <div class="exports">
+            <button id="pdfPuzzle" type="button" disabled>PDF se zadáním</button>
+            <button id="pdfSolution" type="button" disabled>PDF s řešením</button>
+            <button id="pdfBoth" type="button" disabled>Obojí v jednom PDF</button>
+            <button id="pdfShare" type="button" hidden disabled>Sdílet / vytisknout PDF</button>
+          </div>
+          <div class="tips">
+            <details>
+              <summary>Jak na to, aby obrázek vynikl</summary>
+              <p>Cestu nejdřív hledej tužkou. Špatné odbočky klidně zakresli, obrázku nevadí.</p>
+              <p>Správnou cestu nakonec obtáhni tlustou černou fixou, ideálně tak širokou, jako je chodba.</p>
+              <p>Šipka dovnitř je start, šipka ven je cíl. Při tisku nastav „Skutečná velikost“ (100 %).</p>
+            </details>
+          </div>
         </div>
       </div>
-    </section>
-  </div>
+    </div>
+  </section>
+  <p class="status" id="status" role="status"></p>
 </div>
 
 <script>
@@ -875,6 +888,7 @@ function markStale(){ if(state.maze&&!state.stale){state.stale=true;setStatus('N
 // ---------- generate
 function generate(){
   if(!state.src)return;
+  const first=$('stage').hidden;$('stage').hidden=false;$('reseed').hidden=false;
   $('busy').classList.add('on');$('gen').disabled=true;
   setTimeout(()=>{
     try{
@@ -891,6 +905,7 @@ function generate(){
       setStatus(`Hotovo za ${fmt((performance.now()-t0)/1000,1)} s.`);
       ['pdfPuzzle','pdfSolution','pdfBoth'].forEach(id=>$(id).disabled=false);state.lastPdf=null;updateShareBtn();
       render();
+      if(first||window.innerWidth<1200)$('stage').scrollIntoView({behavior:'smooth',block:'start'});
     }catch(e){console.error(e);setStatus('Generování selhalo: '+e.message,true)}
     $('busy').classList.remove('on');$('gen').disabled=false;
   },40);
@@ -1012,32 +1027,28 @@ document.querySelectorAll('[data-cols]').forEach(bt=>bt.addEventListener('click'
 $('file').addEventListener('change',e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
   const url=URL.createObjectURL(f);const img=new Image();
-  img.onload=()=>{setSourceFromImage(img,f.name);resetCrop();URL.revokeObjectURL(url);updateThumb();generate()};
+  img.onload=()=>{setSourceFromImage(img,f.name);resetCrop();URL.revokeObjectURL(url);updateThumb()};
   img.onerror=()=>{setStatus('Tenhle soubor se nedá otevřít jako obrázek. Zkus JPG nebo PNG.',true)};
   img.src=url;e.target.value='';
 });
-$('rand').addEventListener('click',()=>{randomEmoji();resetCrop();state.seed=(Math.random()*1e9)>>>0;updateThumb();generate()});
+$('rand').addEventListener('click',()=>{randomEmoji();resetCrop();state.seed=(Math.random()*1e9)>>>0;updateThumb()});
 $('gen').addEventListener('click',generate);
 
-// ---------- crop + brush field
-const TOOL_HINT={off:'Vyber nástroj. Když je vypnutý, plochou jde normálně posouvat.',
-  crop:'Táhni za rohy nebo hrany rámečku, uvnitř rámeček posuneš. Jako ořez fotky v telefonu.',
-  erase:'Přejeď prstem přes to, co v obrázku nechceš, třeba obrazy na zdi. Smazaná místa zčervenají.',
+// ---------- crop field (step 2) and brush field (step 3)
+const TOOL_HINT={off:'Vyber Smazat nebo Ponechat a přejeď prstem po obrázku. V režimu Posouvat jde plochou normálně scrollovat.',
+  erase:'Přejeď přes to, co v obrázku nechceš, třeba obrazy na zdi. Smazaná místa zčervenají.',
   keep:'Přejeď přes místa, která se nemají ztlumit. Chráněná místa zezelenají.'};
 function setTool(t){state.brush=t;document.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===t)));
-  $('paint').classList.toggle('painting',t!=='off');$('toolhint').textContent=TOOL_HINT[t];
-  $('cropBtns').style.display=t==='crop'?'':'none';$('brushOpts').style.display=(t==='erase'||t==='keep')?'':'none';renderPaint()}
+  $('paint').classList.toggle('painting',t!=='off');$('toolhint').textContent=TOOL_HINT[t];renderPaint()}
 document.querySelectorAll('[data-tool]').forEach(bt=>bt.addEventListener('click',()=>setTool(bt.dataset.tool)));
 const tint=document.createElement('canvas');
-let view=null; // how the field maps to the photo: {mode, sx,sy,sw,sh, cssW,cssH}
-function renderPaint(){
-  const cv=$('paint');if(!state.src||!state.crop)return;
-  const cropMode=state.brush==='crop';const src=state.src;
+function renderField(cv,cropMode){
+  if(!state.src||!state.crop||!cv.offsetParent)return;const src=state.src;
   const r=cropMode?{sx:0,sy:0,sw:src.width,sh:src.height}:state.crop;
-  const wrapW=Math.max(120,cv.parentElement.clientWidth-14),maxH=window.innerHeight*0.55;
+  const wrapW=Math.max(120,cv.parentElement.clientWidth-14),maxH=window.innerHeight*(cropMode?0.45:0.5);
   const k=Math.min(wrapW/r.sw,maxH/r.sh);const cssW=Math.round(r.sw*k),cssH=Math.round(r.sh*k);const dpr=Math.min(2,window.devicePixelRatio||1);
   const pw=Math.round(cssW*dpr),ph=Math.round(cssH*dpr);if(cv.width!==pw||cv.height!==ph){cv.width=pw;cv.height=ph}
-  cv.style.width=cssW+'px';cv.style.height=cssH+'px';view={sx:r.sx,sy:r.sy,sw:r.sw,sh:r.sh,cssW,cssH};
+  cv.style.width=cssW+'px';cv.style.height=cssH+'px';cv._view={sx:r.sx,sy:r.sy,sw:r.sw,sh:r.sh};
   const x=cv.getContext('2d');x.globalCompositeOperation='source-over';
   if(cropMode){
     x.imageSmoothingEnabled=true;x.drawImage(state.srcGray,0,0,pw,ph);
@@ -1050,7 +1061,6 @@ function renderPaint(){
     for(const [px,py,dx,dy] of [[X,Y,1,1],[X+Wd,Y,-1,1],[X,Y+Hd,1,-1],[X+Wd,Y+Hd,-1,-1]]){x.moveTo(px+dx*L,py);x.lineTo(px,py);x.lineTo(px,py+dy*L)}x.stroke();
     return;
   }
-  // brush modes: the black-and-white picture exactly as the maze will use it
   x.imageSmoothingEnabled=false;x.drawImage($('thumbGray'),0,0,pw,ph);x.imageSmoothingEnabled=true;
   tint.width=pw;tint.height=ph;const tx=tint.getContext('2d');
   for(const [layer,col] of [[state.erase,'rgba(225,35,60,0.5)'],[state.keep,'rgba(20,170,90,0.45)']]){
@@ -1058,24 +1068,25 @@ function renderPaint(){
     tx.drawImage(layer,r.sx,r.sy,r.sw,r.sh,0,0,pw,ph);
     tx.globalCompositeOperation='source-in';tx.fillStyle=col;tx.fillRect(0,0,pw,ph);x.drawImage(tint,0,0);}
 }
+function renderPaint(){renderField($('cropcv'),true);renderField($('paint'),false)}
 let painting=false,lastPt=null,rafPending=false,brushTimer=0,cropDrag=null;
-const fieldPos=e=>{const r=$('paint').getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height,r]};
-function toSrc(e){const [u,v]=fieldPos(e);return [view.sx+u*view.sw,view.sy+v*view.sh]}
+const fieldPos=(cv,e)=>{const r=cv.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height,r]};
+function toSrc(e){const cv=$('paint'),v=cv._view;const [u,w]=fieldPos(cv,e);return [v.sx+u*v.sw,v.sy+w*v.sh]}
 function scheduleThumb(){clearTimeout(brushTimer);brushTimer=setTimeout(updateThumb,160);markStale()}
+function rerender(){if(!rafPending){rafPending=true;requestAnimationFrame(()=>{rafPending=false;renderPaint()})}}
 function stroke(a,b){const rad=+$('bsize').value*state.crop.sw/2;
   const paint=state.brush==='erase'?state.erase:state.keep, wipe=state.brush==='erase'?state.keep:state.erase;
   for(const [cv,mode] of [[paint,'source-over'],[wipe,'destination-out']]){const x=cv.getContext('2d');
     x.globalCompositeOperation=mode;x.strokeStyle='#000';x.fillStyle='#000';x.lineWidth=rad*2;x.lineCap='round';
     x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke();x.beginPath();x.arc(b[0],b[1],rad,0,Math.PI*2);x.fill();x.globalCompositeOperation='source-over'}
-  if(!rafPending){rafPending=true;requestAnimationFrame(()=>{rafPending=false;renderPaint()})}
-  scheduleThumb();}
-function cropDown(e){const [u,v,r]=fieldPos(e);const c=state.cropRect;const tu=26/r.width,tv=26/r.height;
+  rerender();scheduleThumb();}
+function cropDown(e){const [u,v,r]=fieldPos($('cropcv'),e);const c=state.cropRect;const tu=26/r.width,tv=26/r.height;
   const nearL=Math.abs(u-c.x)<tu,nearR=Math.abs(u-(c.x+c.w))<tu,nearT=Math.abs(v-c.y)<tv,nearB=Math.abs(v-(c.y+c.h))<tv;
   const inX=u>c.x-tu&&u<c.x+c.w+tu,inY=v>c.y-tv&&v<c.y+c.h+tv;
   let mode={l:nearL&&inY,r:nearR&&inY&&!nearL,t:nearT&&inX,b:nearB&&inX&&!nearT};
   if(!mode.l&&!mode.r&&!mode.t&&!mode.b){if(u>c.x&&u<c.x+c.w&&v>c.y&&v<c.y+c.h)mode={move:true};else return false}
   cropDrag={mode,u0:u,v0:v,c0:Object.assign({},c)};return true}
-function cropMove(e){const [u,v]=fieldPos(e);const d=cropDrag,c0=d.c0,du=u-d.u0,dv=v-d.v0,mn=0.06;let {x,y,w,h}=c0;
+function cropMove(e){const [u,v]=fieldPos($('cropcv'),e);const d=cropDrag,c0=d.c0,du=u-d.u0,dv=v-d.v0,mn=0.06;let {x,y,w,h}=c0;
   if(d.mode.move){x=Math.min(1-w,Math.max(0,x+du));y=Math.min(1-h,Math.max(0,y+dv))}
   else{let x2=x+w,y2=y+h;
     if(d.mode.l)x=Math.min(x2-mn,Math.max(0,x+du)); if(d.mode.r)x2=Math.max(x+mn,Math.min(1,x2+du));
@@ -1088,15 +1099,15 @@ function cropMove(e){const [u,v]=fieldPos(e);const d=cropDrag,c0=d.c0,du=u-d.u0,
       if(m.l)x=c0.x+c0.w-w;else if(!m.r)x=c0.x+c0.w/2-w/2;
       if(x<-1e-6||y<-1e-6||x+w>1+1e-6||y+h>1+1e-6||w<mn||h<mn)return;}
   }
-  state.cropRect={x,y,w,h};
-  if(!rafPending){rafPending=true;requestAnimationFrame(()=>{rafPending=false;renderPaint()})}
-  scheduleThumb();}
-$('paint').addEventListener('pointerdown',e=>{if(state.brush==='off'||!state.crop||!view)return;
-  if(state.brush==='crop'){if(!cropDown(e))return}else{lastPt=toSrc(e);stroke(lastPt,lastPt)}
-  e.preventDefault();painting=true;$('paint').setPointerCapture(e.pointerId)});
-$('paint').addEventListener('pointermove',e=>{if(!painting)return;e.preventDefault();
-  if(state.brush==='crop')cropMove(e);else{const p=toSrc(e);stroke(lastPt,p);lastPt=p}});
-['pointerup','pointercancel'].forEach(n=>$('paint').addEventListener(n,()=>{painting=false;cropDrag=null}));
+  state.cropRect={x,y,w,h};rerender();scheduleThumb();}
+const ccv=$('cropcv');
+ccv.addEventListener('pointerdown',e=>{if(!state.src||!ccv._view)return;if(!cropDown(e))return;e.preventDefault();ccv.setPointerCapture(e.pointerId)});
+ccv.addEventListener('pointermove',e=>{if(!cropDrag)return;e.preventDefault();cropMove(e)});
+['pointerup','pointercancel'].forEach(n=>ccv.addEventListener(n,()=>{cropDrag=null}));
+const pcv=$('paint');
+pcv.addEventListener('pointerdown',e=>{if(state.brush==='off'||!state.crop||!pcv._view)return;e.preventDefault();painting=true;pcv.setPointerCapture(e.pointerId);lastPt=toSrc(e);stroke(lastPt,lastPt)});
+pcv.addEventListener('pointermove',e=>{if(!painting)return;e.preventDefault();const p=toSrc(e);stroke(lastPt,p);lastPt=p});
+['pointerup','pointercancel'].forEach(n=>pcv.addEventListener(n,()=>{painting=false}));
 $('clearMask').addEventListener('click',()=>{if(!state.src)return;for(const c of [state.erase,state.keep])c.getContext('2d').clearRect(0,0,c.width,c.height);updateThumb();markStale()});
 $('fullCrop').addEventListener('click',()=>{resetCrop();updateThumb();markStale()});
 // crop to where the picture actually is (after contrast, erasing and background dimming)
@@ -1170,7 +1181,7 @@ $('dText').addEventListener('click',()=>{
   lines.forEach((l,i)=>x.fillText(l,dcv.width/2,top+i*lh));drawDirty=true;useDrawing();
 });
 $('drawBtn').addEventListener('click',()=>{
-  const panel=$('drawPanel');panel.hidden=false;panel.open=true;
+  const panel=$('drawPanel');panel.hidden=false;
   if(!drawInit)initDraw();else sizeDraw();
   setDTool('pen');if(drawDirty)useDrawing();
   panel.scrollIntoView({behavior:'smooth',block:'start'});
@@ -1233,14 +1244,14 @@ $('pdfSolution').addEventListener('click',()=>exportPDF(['solution'],'reseni'));
 $('pdfBoth').addEventListener('click',()=>exportPDF(['puzzle','solution'],'zadani-a-reseni'));
 $('pdfShare').addEventListener('click',sharePdf);
 
-document.querySelectorAll('details.fold').forEach(d=>d.addEventListener('toggle',()=>{if(d.open){renderPaint();if(drawInit)sizeDraw()}}));
+document.querySelectorAll('details.sub').forEach(d=>d.addEventListener('toggle',()=>{if(d.open){renderPaint();if(drawInit)sizeDraw()}}));
 setTool('off');
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!inClaude&&!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
 syncOutputs();
 // first run: a random picture so the page is never empty
-const start=()=>{randomEmoji();updateThumb();generate()};
+const start=()=>{randomEmoji();updateThumb()};
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(start);else start();
 })();
 
