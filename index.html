@@ -233,6 +233,8 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
           <button type="button" data-cols="280">Masivní</button>
           <button type="button" data-cols="450">Na tablet</button>
         </div>
+        <div class="field"><label for="turns">Odbočky ze správné cesty</label><output id="turnsV"></output><input id="turns" type="range" min="0" max="1" step="0.05" value="0.7">
+          <span class="hint">Víc odboček znamená víc míst, kde se dá na správné cestě splést. V úplně tmavých místech obrázku pomůže ještě snížit Sytost tmavých míst.</span></div>
         <div class="field"><label for="branch">Slepé uličky</label><output id="branchV"></output><input id="branch" type="range" min="0" max="1" step="0.05" value="0.75">
           <span class="hint">Vlevo krátké a časté odbočky, vpravo dlouhé klikaté chodby.</span></div>
         <p class="hint" style="margin-top:12px">Start a cíl jsou na okrajích bludiště, co nejdál od sebe. Vybírají se místa, kde je obrázek okraji nejblíž, takže čára k okraji je co nejkratší, a když obrázek sahá až k okraji, není tam žádná.</p>
@@ -503,6 +505,9 @@ function generateMaze(t, cw, ch, opts){
     const tS=lS&&lS.p,tE=lE&&lE.p;const sA2=lS?lS.k:null,sB2=lE?lE.k:null;
     const full=[];if(tS)for(let i=tS.length-1;i>=0;i--)full.push(tS[i]);for(const f of path)full.push(f);if(tE)for(const f of tE)full.push(f);
     farRes={path:full,startSide:sA2,endSide:sB2};
+    if(!sA2||!sB2){const k=opts._try||0;
+      if(k<6)return generateMaze(t,cw,ch,Object.assign({},opts,{seed:(opts.seed+7919)>>>0,_try:k+1}));
+      return generateMaze(t,cw,ch,Object.assign({},opts,{spine:pickSpine(t,cw,ch),_try:99}));}
   }
   // --- phase 5: cut cycle + tails to top / bottom border
   const neigh=(f)=>{const x=f%W,y=(f/W)|0,r=[];if(y>0)r.push(f-W);if(y<H-1)r.push(f+W);if(x>0)r.push(f-1);if(x<W-1)r.push(f+1);return r};
@@ -575,7 +580,9 @@ function generateMaze(t, cw, ch, opts){
   } else {
     // picture fills the borders, no room for lead-in lines: rebuild with a spine on the darker side
     let sl=0,sr=0;for(let y=0;y<ch;y++){sl+=t[y*cw];sr+=t[y*cw+cw-1]}
-    return generateMaze(t,cw,ch,Object.assign({},opts,{ends:'far'}));
+    const k=opts._try||0;
+    if(k<6)return generateMaze(t,cw,ch,Object.assign({},opts,{ends:'far',seed:(opts.seed+7919)>>>0,_try:k+1}));
+    return generateMaze(t,cw,ch,Object.assign({},opts,{spine:pickSpine(t,cw,ch),_try:99}));
   }
   // --- phase 6: perfect maze around the fixed solution path
   const openR=new Uint8Array(M), openD=new Uint8Array(M), vis=new Uint8Array(M);
@@ -587,7 +594,7 @@ function generateMaze(t, cw, ch, opts){
     const free=new Uint8Array(N);
     for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const f=(2*y)*W+2*x;if(!vis[f]&&!vis[f+1]&&!vis[f+W]&&!vis[f+W+1])free[y*cw+x]=1}
     const ufc=makeUF(N),size=new Int32Array(N).fill(1),cap=new Int32Array(N);
-    for(let i=0;i<N;i++)cap[i]=4+((rnd()*rnd()*60)|0);
+    const capMax=60*(1-0.85*(opts.turns==null?0.6:opts.turns));for(let i=0;i<N;i++)cap[i]=2+((rnd()*rnd()*capMax)|0);
     const tR=new Uint8Array(N),tD=new Uint8Array(N);const es=[];
     for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!free[c])continue;if(x<cw-1&&free[c+1])es.push(c*2);if(y<ch-1&&free[c+cw])es.push(c*2+1)}
     for(let i=es.length-1;i>0;i--){const j=(rnd()*(i+1))|0;const tmp=es[i];es[i]=es[j];es[j]=tmp}
@@ -604,13 +611,23 @@ function generateMaze(t, cw, ch, opts){
     for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!free[c])continue;const s0=(2*y)*W+2*x;if(tubeOf[s0]>=0)continue;
       const cyc2=[];let prev=-1,cur=s0;do{cyc2.push(cur);const nx=lA[cur]!==prev?lA[cur]:lB[cur];prev=cur;cur=nx}while(cur!==s0);
       const k=(rnd()*cyc2.length)|0;const tp=[];for(let i=0;i<cyc2.length;i++)tp.push(cyc2[(k+i)%cyc2.length]);
-      const id=tubes.length;tubes.push(tp);for(let i=0;i<tp.length;i++){tubeOf[tp[i]]=id;if(i)open(tp[i-1],tp[i])}}
+      // split long tubes into pieces so the correct path gets more places to turn off
+      const tq=opts.turns==null?0.6:opts.turns;let i0=0;
+      while(i0<tp.length){const len=Math.max(4,Math.round(4+rnd()*(6+40*(1-tq))));const piece=tp.slice(i0,i0+len);i0+=len;
+        const id=tubes.length;tubes.push(piece);for(let i=0;i<piece.length;i++){tubeOf[piece[i]]=id;if(i)open(piece[i-1],piece[i])}}}
   }
   {
     const pNew=0.55+0.44*(opts.branchiness==null?0.6:opts.branchiness);
     const act=path.slice();
     for(let i=act.length-1;i>0;i--){const j=(rnd()*(i+1))|0;const tmp=act[i];act[i]=act[j];act[j]=tmp}
     const tmpN=[0,0,0,0];
+    // frequent turn-offs: open a side branch from many cells of the correct path right away
+    const q=opts.turns==null?0.6:opts.turns;
+    const grab=(c,nx)=>{open(c,nx);const tb=tubeOf[nx];if(tb>=0){for(const f of tubes[tb]){vis[f]=1;act.push(f)}}else vis[nx]=1;act.push(nx)};
+    if(q>0)for(let i=0;i<path.length;i++){const c=path[i];if(rnd()>=q)continue;const x=c%W,y=(c/W)|0;let n=0;
+      if(x>0&&!vis[c-1])tmpN[n++]=c-1; if(x<W-1&&!vis[c+1])tmpN[n++]=c+1;
+      if(y>0&&!vis[c-W])tmpN[n++]=c-W; if(y<H-1&&!vis[c+W])tmpN[n++]=c+W;
+      if(n)grab(c,tmpN[(rnd()*n)|0]);}
     while(act.length){
       let idx=rnd()<pNew?act.length-1:(rnd()*act.length)|0;
       const c=act[idx],x=c%W,y=(c/W)|0;let n=0;
@@ -758,7 +775,7 @@ function sampleLayer(layer,cw,ch,crop,channel){
 const P=()=>({
   contrast:+$('contrast').value, bright:+$('bright').value, sharp:+$('sharp').value, maxcov:+$('maxcov').value,
   invert:$('invert').checked, shape:$('shape').value, paper:$('paper').value, orient:$('orient').value,
-  cols:+$('cols').value, branch:+$('branch').value, ends:'far', camo:$('camo').checked, bg:+$('bg').value, vig:+$('vig').value });
+  cols:+$('cols').value, branch:+$('branch').value, turns:+$('turns').value, ends:'far', camo:$('camo').checked, bg:+$('bg').value, vig:+$('vig').value });
 
 function computeDims(p){
   const [a,b]=PAPERS[p.paper];
@@ -842,10 +859,10 @@ function generate(){
     try{
       const p=P();updateThumb();const dm=state.dims;
       const t0=performance.now();
-      let m=makeMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch,ends:p.ends,camo:p.camo});
+      let m=makeMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch,turns:p.turns,ends:p.ends,camo:p.camo});
       // safety net: if the picture got lost, rebuild without tone compensation
       let want=0;for(const v of state.target)want+=v;want*=4;
-      if(want>400&&m.path.length<want*0.3){console.warn('coverage low',m.path.length,want);m=makeMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch,ends:p.ends,camo:p.camo,iters:1})}
+      if(want>400&&m.path.length<want*0.3){console.warn('coverage low',m.path.length,want);m=makeMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch,turns:p.turns,ends:p.ends,camo:p.camo,iters:1})}
       state.maze=m;state.segs=wallSegments(m);state.poly=solutionPolyline(m);state.mm=dm.s;state.paper=p.paper;state.dm=dm;
       state.stale=false;
       const len=m.path.length*dm.s/1000;
@@ -948,13 +965,14 @@ function syncOutputs(){
   $('vigV').textContent=+$('vig').value===0?'vypnuto':fmt(+$('vig').value*100)+' %';
   $('bsizeV').textContent=fmt(+$('bsize').value*100)+' %';
   $('colsV').textContent=$('cols').value;
+  {const v=+$('turns').value;$('turnsV').textContent=v<0.25?'málo':v<0.55?'středně':v<0.85?'hodně':'co nejvíc'}
   $('dsizeV').textContent=fmt(+$('dsize').value*100,1)+' %';
   const b=+$('branch').value;$('branchV').textContent=b<0.34?'krátké':b<0.67?'střední':'dlouhé';
   document.querySelectorAll('[data-cols]').forEach(bt=>bt.setAttribute('aria-pressed',String(bt.dataset.cols===$('cols').value)));
 }
 let thumbTimer=0;
 function onSetting(){syncOutputs();clearTimeout(thumbTimer);thumbTimer=setTimeout(updateThumb,60);markStale()}
-['contrast','bright','sharp','maxcov','cols','branch','bg','vig','bsize','dsize'].forEach(id=>$(id).addEventListener('input',onSetting));
+['contrast','bright','sharp','maxcov','cols','branch','turns','bg','vig','bsize','dsize'].forEach(id=>$(id).addEventListener('input',onSetting));
 ['invert','paper','orient','camo'].forEach(id=>$(id).addEventListener('change',onSetting));
 $('shape').addEventListener('change',()=>{fitCropToShape();onSetting()});
 ['paper','orient'].forEach(id=>$(id).addEventListener('change',()=>{if($('shape').value==='paper'){fitCropToShape();updateThumb()}}));
