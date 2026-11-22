@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bludiště s překvapením</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap" rel="stylesheet">
+<script src="jspdf.umd.min.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#18254F">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --paper:#F7F9FC; --surface:#FFFFFF; --ink:#18254F; --ink-soft:#4A5578; --grid:#DCE4F1;
+  --marker:#FFE13A; --marker-ink:#18254F; --line:#C9D3E6; --danger:#B3261E;
+  --maze-bg:#FFFFFF; --maze-wall:#18254F; --maze-faint:#B9C2D6; --maze-path:#18254F; --maze-sol:#E0458B;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#10162A; --surface:#182039; --ink:#E7ECF8; --ink-soft:#A4AFCB; --grid:#1E2843;
+    --marker:#FFE13A; --marker-ink:#10162A; --line:#2C3756; --danger:#FF8A80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#10162A; --surface:#182039; --ink:#E7ECF8; --ink-soft:#A4AFCB; --grid:#1E2843;
+  --marker:#FFE13A; --marker-ink:#10162A; --line:#2C3756; --danger:#FF8A80; color-scheme: dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  margin:0; color:var(--ink); background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;
+  font:17px/1.5 "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+h1,h2{font-family:"Bricolage Grotesque", "Atkinson Hyperlegible", system-ui, sans-serif; margin:0; line-height:1.1}
+h1{font-size:clamp(30px,6vw,52px); font-weight:800; letter-spacing:-0.02em}
+h2{font-size:20px; font-weight:600; margin-bottom:12px}
+.wrap{max-width:1280px; margin:0 auto; padding:20px 16px 48px}
+header{margin:8px 0 22px; max-width:62ch}
+header p{margin:10px 0 0; color:var(--ink-soft)}
+.hl{background:linear-gradient(transparent 55%, var(--marker) 55%, var(--marker) 92%, transparent 92%); padding:0 .1em}
+.layout{display:grid; grid-template-columns:minmax(0,1fr); gap:18px}
+@media (min-width:960px){ .layout{grid-template-columns:380px minmax(0,1fr); align-items:start}
+  .stage{position:sticky; top:calc(env(safe-area-inset-top,0px) + 12px)} }
+.panel{background:var(--surface); border:1.5px solid var(--line); border-radius:14px; padding:16px}
+.controls{display:flex; flex-direction:column; gap:14px}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+button,.btn{
+  font:inherit; font-weight:700; border:1.5px solid var(--ink); background:var(--surface); color:var(--ink);
+  border-radius:10px; padding:10px 14px; cursor:pointer; min-height:44px; display:inline-flex; align-items:center; gap:8px; justify-content:center
+}
+button:hover{background:var(--paper)}
+button:focus-visible,input:focus-visible,select:focus-visible,label.btn:focus-within{outline:3px solid var(--marker); outline-offset:2px}
+button.primary{background:var(--marker); color:var(--marker-ink); border-color:var(--marker-ink)}
+button.primary:hover{filter:brightness(.96)}
+button[disabled]{opacity:.45; cursor:not-allowed}
+.grow{flex:1 1 auto}
+input[type=file]{position:absolute; width:1px; height:1px; opacity:0}
+.thumbrow{display:flex; gap:12px; align-items:center; margin-top:12px}
+#thumb{width:96px; height:96px; object-fit:contain; border-radius:8px; border:1.5px solid var(--line); background:#fff; image-rendering:pixelated; flex:none}
+.thumbinfo{font-size:15px; color:var(--ink-soft)}
+.field{display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:center; margin:10px 0}
+.field label{font-weight:700; font-size:15px}
+.field output{font-variant-numeric:tabular-nums; font-size:15px; color:var(--ink-soft)}
+.field input[type=range]{grid-column:1 / -1; width:100%; accent-color:var(--ink)}
+.field .hint{grid-column:1 / -1; font-size:13px; color:var(--ink-soft)}
+select{font:inherit; padding:8px 10px; border-radius:10px; border:1.5px solid var(--line); background:var(--surface); color:var(--ink); min-height:44px; width:100%}
+.selects{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.selects label{font-size:14px; font-weight:700; display:block; margin-bottom:4px}
+.chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
+.chips button{min-height:36px; padding:6px 10px; font-size:14px; border-color:var(--line)}
+.chips button[aria-pressed="true"]{border-color:var(--ink); background:var(--marker); color:var(--marker-ink)}
+.check{display:flex; gap:8px; align-items:center; font-size:15px; margin-top:6px}
+.check input{width:20px; height:20px; accent-color:var(--ink)}
+.stats{font-size:15px; color:var(--ink-soft); margin:10px 0 0}
+.stats strong{color:var(--ink)}
+.stage .panel{padding:12px}
+.toolbar{display:flex; gap:8px; justify-content:space-between; flex-wrap:wrap; margin-bottom:10px}
+.seg{display:inline-flex; border:1.5px solid var(--ink); border-radius:10px; overflow:hidden}
+.seg button{border:0; border-radius:0; min-height:40px; padding:8px 12px; font-size:15px}
+.seg button+button{border-left:1.5px solid var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+.viewport{position:relative; overflow:auto; border-radius:10px; background:var(--maze-bg); border:1.5px solid var(--line); max-height:78vh; -webkit-overflow-scrolling:touch}
+#cv{display:block; width:100%; height:auto}
+.busy{position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(255,255,255,.72); color:#18254F; font-weight:700; font-size:18px}
+.busy.on{display:flex}
+.status{font-size:14px; margin:8px 2px 0; color:var(--ink-soft); min-height:1.4em}
+.status.warn{color:var(--danger)}
+.exports{display:grid; grid-template-columns:1fr; gap:8px; margin-top:12px}
+@media (min-width:600px){ .exports{grid-template-columns:repeat(3,1fr)} }
+.tips{font-size:15px; color:var(--ink-soft); margin:14px 2px 0; max-width:70ch}
+.tips p{margin:6px 0}
+details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32px}
+.crop{margin:12px 0 2px}
+.crop .hint{font-size:13px; color:var(--ink-soft)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important; animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Bludiště s <span class="hl">překvapením</span></h1>
+    <p>Nahraj fotku a vytiskni z ní bludiště. Kdo ho vyřeší a obtáhne správnou cestu fixou, uvidí, co se v něm schovávalo.</p>
+  </header>
+
+  <div class="layout">
+    <section class="controls" aria-label="Nastavení">
+      <div class="panel">
+        <h2>Obrázek</h2>
+        <div class="row">
+          <label class="btn grow" for="file">Nahrát fotku<input id="file" type="file" accept="image/*"></label>
+          <button id="rand" class="grow" type="button">Náhodný obrázek</button>
+        </div>
+        <div class="thumbrow">
+          <canvas id="thumb" width="96" height="96" aria-label="Náhled toho, co se v bludišti ukáže"></canvas>
+          <div class="thumbinfo" id="thumbinfo">Takhle zhruba bude vypadat obrázek po vyřešení. Upravuj ho posuvníky níž.</div>
+        </div>
+        <details class="crop"><summary>Výřez fotky</summary>
+          <div class="field"><label for="zoom">Přiblížení</label><output id="zoomV"></output><input id="zoom" type="range" min="1" max="4" step="0.05" value="1"></div>
+          <div class="field"><label for="px">Posun do stran</label><output id="pxV"></output><input id="px" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+          <div class="field"><label for="py">Posun nahoru a dolů</label><output id="pyV"></output><input id="py" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+          <span class="hint">Obličej přes většinu bludiště dá nejvýraznější výsledek.</span>
+        </details>
+        <div class="field"><label for="contrast">Kontrast</label><output id="contrastV"></output><input id="contrast" type="range" min="0.5" max="2.5" step="0.05" value="1.25"></div>
+        <div class="field"><label for="bright">Jas</label><output id="brightV"></output><input id="bright" type="range" min="-0.5" max="0.5" step="0.02" value="0.06"></div>
+        <div class="field"><label for="sharp">Ostrost detailů</label><output id="sharpV"></output><input id="sharp" type="range" min="0" max="2" step="0.1" value="0.7"></div>
+        <div class="field"><label for="maxcov">Sytost tmavých míst</label><output id="maxcovV"></output><input id="maxcov" type="range" min="0.6" max="1" step="0.01" value="0.9">
+          <span class="hint">Pod 100 % zůstanou i v tmavých místech slepé odbočky, takže je bludiště těžší.</span></div>
+        <label class="check"><input id="invert" type="checkbox"> Obrátit světlé a tmavé</label>
+        <label class="check"><input id="fill" type="checkbox"> Vyplnit celý papír (ořízne okraje fotky)</label>
+      </div>
+
+      <div class="panel">
+        <h2>Velikost</h2>
+        <div class="selects">
+          <div><label for="paper">Papír</label>
+            <select id="paper"><option>A4</option><option>A3</option><option>A2</option><option value="Letter">Letter</option></select></div>
+          <div><label for="orient">Orientace</label>
+            <select id="orient"><option value="auto">Podle obrázku</option><option value="p">Na výšku</option><option value="l">Na šířku</option></select></div>
+        </div>
+        <div class="field"><label for="cell">Velikost políčka</label><output id="cellV"></output><input id="cell" type="range" min="0.8" max="6" step="0.1" value="2.2">
+          <span class="hint">Menší políčka znamenají větší bludiště a ostřejší obrázek.</span></div>
+        <div class="chips" role="group" aria-label="Předvolby velikosti">
+          <button type="button" data-cell="3.5">Rychlovka</button>
+          <button type="button" data-cell="2.2">Normální</button>
+          <button type="button" data-cell="1.6">Velké</button>
+          <button type="button" data-cell="1.1">Masivní</button>
+        </div>
+        <div class="field"><label for="branch">Slepé uličky</label><output id="branchV"></output><input id="branch" type="range" min="0" max="1" step="0.05" value="0.75">
+          <span class="hint">Vlevo krátké a časté odbočky, vpravo dlouhé klikaté chodby.</span></div>
+        <p class="stats" id="gridinfo"></p>
+      </div>
+
+      <div class="row">
+        <button id="gen" class="primary grow" type="button">Vytvořit bludiště</button>
+        <button id="reseed" class="grow" type="button">Jiná varianta</button>
+      </div>
+    </section>
+
+    <section class="stage" aria-label="Náhled">
+      <div class="panel">
+        <div class="toolbar">
+          <div class="seg" role="group" aria-label="Zobrazení">
+            <button type="button" data-view="puzzle" aria-pressed="true">Zadání</button>
+            <button type="button" data-view="solution" aria-pressed="false">Řešení</button>
+            <button type="button" data-view="reveal" aria-pressed="false">Výsledek</button>
+          </div>
+          <div class="seg" role="group" aria-label="Přiblížení">
+            <button type="button" data-zoom="1" aria-pressed="true">Celé</button>
+            <button type="button" data-zoom="2.5" aria-pressed="false">2,5×</button>
+            <button type="button" data-zoom="6" aria-pressed="false">6×</button>
+          </div>
+        </div>
+        <div class="viewport" id="vp">
+          <canvas id="cv" width="10" height="10" aria-label="Náhled bludiště"></canvas>
+          <div class="busy" id="busy">Stavím bludiště…</div>
+        </div>
+        <p class="status" id="status" role="status"></p>
+        <p class="stats" id="mazeinfo"></p>
+        <div class="exports">
+          <button id="pdfPuzzle" type="button" disabled>PDF se zadáním</button>
+          <button id="pdfSolution" type="button" disabled>PDF s řešením</button>
+          <button id="pdfBoth" type="button" disabled>Obojí v jednom PDF</button>
+        </div>
+        <div class="tips">
+          <details>
+            <summary>Jak na to, aby obrázek vynikl</summary>
+            <p>Cestu nejdřív hledej tužkou nebo světlou pastelkou. Špatné odbočky klidně zakresli, obrázku nevadí.</p>
+            <p>Správnou cestu nakonec obtáhni tlustou černou fixou, ideálně tak širokou, jako je chodba. Čím víc chodbu vyplní, tím výraznější obrázek.</p>
+            <p>Nejlépe fungují kontrastní fotky s obličejem přes většinu záběru a světlým pozadím. Šipka dovnitř je start, šipka ven je cíl.</p>
+            <p>U „Masivní“ velikosti se hodí tenký liner na hledání cesty a fix o šířce zhruba 1 mm na obtažení.</p>
+            <p>Při tisku nastav „Skutečná velikost“ (100 %), ne „Přizpůsobit stránce“.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+// ===== Maze core: picture-reveal maze on a square grid =====
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+function makeUF(n){const p=new Int32Array(n);for(let i=0;i<n;i++)p[i]=i;
+  const find=x=>{while(p[x]!==x){p[x]=p[p[x]];x=p[x]}return x};
+  return {find,union(a,b){a=find(a);b=find(b);if(a===b)return false;p[a]=b;return true}};}
+
+// min-heap of (key,val)
+function Heap(){const k=[],v=[];return{
+  get size(){return k.length},
+  push(key,val){k.push(key);v.push(val);let i=k.length-1;while(i>0){const p=(i-1)>>1;if(k[p]<=k[i])break;[k[p],k[i]]=[k[i],k[p]];[v[p],v[i]]=[v[i],v[p]];i=p}},
+  pop(){const top=v[0];const lk=k.pop(),lv=v.pop();if(k.length){k[0]=lk;v[0]=lv;let i=0;const n=k.length;for(;;){let l=2*i+1,r=l+1,m=i;if(l<n&&k[l]<k[m])m=l;if(r<n&&k[r]<k[m])m=r;if(m===i)break;[k[m],k[i]]=[k[i],k[m]];[v[m],v[i]]=[v[i],v[m]];i=m}}return top}}}
+
+
+// Floyd–Steinberg (serpentine) dither: 1 = dark cell
+function dither(t,cw,ch){const e=Float32Array.from(t),D=new Uint8Array(cw*ch);
+  for(let y=0;y<ch;y++){const ltr=(y&1)===0;
+    for(let k=0;k<cw;k++){const x=ltr?k:cw-1-k,c=y*cw+x;const v=e[c];const o=v>=0.5?1:0;D[c]=o;const err=v-o;const dx=ltr?1:-1;
+      if(x+dx>=0&&x+dx<cw)e[c+dx]+=err*7/16;
+      if(y+1<ch){e[c+cw]+=err*5/16;if(x-dx>=0&&x-dx<cw)e[c+cw-dx]+=err*3/16;if(x+dx>=0&&x+dx<cw)e[c+cw+dx]+=err*1/16}}}
+  return D}
+function boxBlur(a,cw,ch,R){const o=new Float32Array(cw*ch);
+  for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){let s=0,n=0;for(let dy=-R;dy<=R;dy++){const yy=y+dy;if(yy<0||yy>=ch)continue;for(let dx=-R;dx<=R;dx++){const xx=x+dx;if(xx<0||xx>=cw)continue;s+=a[yy*cw+xx];n++}}o[y*cw+x]=s/n}return o}
+
+// connected tree of coarse cells whose shape is a halftone of t
+function buildTree(t,cw,ch,rnd,opts){
+  const N=cw*ch;let tAdj=Float32Array.from(t);const tb=boxBlur(t,cw,ch,2);
+  let res=null;const iters=opts.iters==null?3:opts.iters;
+  for(let it=0;it<iters;it++){
+    const D=dither(tAdj,cw,ch);
+    let any=false;for(let i=0;i<N;i++)if(D[i]){any=true;break}
+    if(!any)D[((ch>>1)*cw)+(cw>>1)]=1;
+    if(opts.spine){const X=opts.spine==='right'?cw-1:0;for(let y=0;y<ch;y++)D[y*cw+X]=1}
+    res=treeFromDots(D,t,cw,ch,rnd,opts.spine);
+    if(it<iters-1){const cov=boxBlur(Float32Array.from(res.inS),cw,ch,2);
+      for(let i=0;i<N;i++)tAdj[i]=Math.min(1,Math.max(0,tAdj[i]+(tb[i]-cov[i])*0.9));}
+  }
+  return res;
+}
+function treeFromDots(D,t,cw,ch,rnd,spine){
+  const N=cw*ch;
+  const treeR=new Uint8Array(N), treeD=new Uint8Array(N), deg=new Uint8Array(N), inS=new Uint8Array(N);
+  const uf=makeUF(N);
+  const addEdge=(a,b)=>{ if(!uf.union(a,b)) return false;
+    if(b===a+1) treeR[a]=1; else if(a===b+1) treeR[b]=1; else if(b===a+cw) treeD[a]=1; else treeD[b]=1;
+    deg[a]++;deg[b]++;inS[a]=1;inS[b]=1;return true;};
+  for(let i=0;i<N;i++) if(D[i]) inS[i]=1;
+  if(spine){const X=spine==='right'?cw-1:0;for(let y=0;y<ch-1;y++)addEdge(y*cw+X,(y+1)*cw+X)}
+  // black-black edges, then black-white edges (random order within each class)
+  const bb=[],bw=[];
+  for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;
+    if(x<cw-1){const k=D[c]+D[c+1];if(k===2)bb.push(c*2);else if(k===1)bw.push(c*2)}
+    if(y<ch-1){const k=D[c]+D[c+cw];if(k===2)bb.push(c*2+1);else if(k===1)bw.push(c*2+1)}}
+  const shuf=a=>{for(let i=a.length-1;i>0;i--){const j=(rnd()*(i+1))|0;const tmp=a[i];a[i]=a[j];a[j]=tmp}};
+  shuf(bb);shuf(bw);
+  for(const e of bb){const c=e>>1;addEdge(c,(e&1)?c+cw:c+1)}
+  // a white cell is only worth adding if it joins two different dark groups
+  for(const e of bw){const c=e>>1,n=(e&1)?c+cw:c+1;const w=D[c]?n:c,b=D[c]?c:n;
+    if(!inS[w]){ // first touch: remember tentatively by union only if it later bridges; simple approach: add, prune later
+    }
+    addEdge(b,w);}
+  // connect remaining components through empty cells (shortest bridges)
+  {
+    const dist=new Int32Array(N).fill(-1), lab=new Int32Array(N).fill(-1), par=new Int32Array(N).fill(-1);
+    const q=new Int32Array(N);let h=0,tl=0;
+    for(let i=0;i<N;i++) if(inS[i]){dist[i]=0;lab[i]=uf.find(i);q[tl++]=i}
+    while(h<tl){const c=q[h++],x=c%cw,y=(c/cw)|0;
+      const nb=[x>0?c-1:-1,x<cw-1?c+1:-1,y>0?c-cw:-1,y<ch-1?c+cw:-1];
+      const o=(rnd()*4)|0;
+      for(let k=0;k<4;k++){const n=nb[(k+o)&3];if(n<0||lab[n]>=0)continue;lab[n]=lab[c];dist[n]=dist[c]+1;par[n]=c;q[tl++]=n}}
+    const pairs=[];
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;
+      if(x<cw-1&&lab[c]!==lab[c+1])pairs.push([dist[c]+dist[c+1]+rnd()*0.5,c,c+1]);
+      if(y<ch-1&&lab[c]!==lab[c+cw])pairs.push([dist[c]+dist[c+cw]+rnd()*0.5,c,c+cw]);}
+    pairs.sort((a,b)=>a[0]-b[0]);
+    const uf2=makeUF(N);
+    const chain=(x)=>{ while(dist[x]>0&&!inS[x]){ const p=par[x]; addEdge(x,p); x=p; } };
+    for(const [,a,b] of pairs){ if(!uf2.union(lab[a],lab[b]))continue;
+      chain(a);chain(b);addEdge(a,b);}
+  }
+  // prune light leaves
+  let total=0;for(let i=0;i<N;i++)total+=inS[i];
+  const stack=[];for(let i=0;i<N;i++) if(inS[i]&&!D[i]&&deg[i]<=1) stack.push(i);
+  while(stack.length){const c=stack.pop();
+    if(!inS[c]||D[c]||deg[c]>1||total<=1)continue;
+    if(deg[c]===0){inS[c]=0;total--;continue}
+    const x=c%cw,y=(c/cw)|0;let nb=-1;
+    if(x<cw-1&&treeR[c]){nb=c+1;treeR[c]=0}
+    else if(x>0&&treeR[c-1]){nb=c-1;treeR[c-1]=0}
+    else if(y<ch-1&&treeD[c]){nb=c+cw;treeD[c]=0}
+    else if(y>0&&treeD[c-cw]){nb=c-cw;treeD[c-cw]=0}
+    inS[c]=0;deg[c]=0;deg[nb]--;total--;
+    if(deg[nb]<=1&&!D[nb]) stack.push(nb);
+  }
+  return {treeR,treeD,inS};
+}
+
+/**
+ * t: Float32Array cw*ch target darkness (0..1, already capped)
+ * opts: {seed, branchiness (0..1), minComp}
+ */
+function generateMaze(t, cw, ch, opts){
+  const rnd=mulberry32(opts.seed>>>0);
+  const N=cw*ch;
+  const tau=0.04;
+  const tree=buildTree(t,cw,ch,rnd,opts);
+  const {treeR,treeD,inS}=tree;
+  // --- phase 4: Hamiltonian cycle on fine grid around the tree
+  const W=cw*2,H=ch*2,M=W*H;
+  const nA=new Int32Array(M).fill(-1), nB=new Int32Array(M).fill(-1);
+  const link=(a,b)=>{ if(nA[a]<0)nA[a]=b; else nB[a]=b; if(nA[b]<0)nA[b]=a; else nB[b]=a; };
+  let startF=-1;
+  for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!inS[c])continue;
+    const TL=(2*y)*W+2*x,TR=TL+1,BL=TL+W,BR=BL+1;
+    if(startF<0)startF=TL;
+    const up=y>0&&treeD[c-cw], left=x>0&&treeR[c-1], right=treeR[c], down=treeD[c];
+    if(!up)link(TL,TR); if(!down)link(BL,BR); if(!left)link(TL,BL); if(!right)link(TR,BR);
+    if(right){link(TR,TL+2);link(BR,BL+2)}
+    if(down){link(BL,BL+W);link(BR,BR+W)}
+  }
+  const cyc=[];{let prev=-1,cur=startF;do{cyc.push(cur);const nx=(nA[cur]!==prev)?nA[cur]:nB[cur];prev=cur;cur=nx}while(cur!==startF&&cyc.length<=M)}
+  const L=cyc.length;
+  const occ=new Uint8Array(M);for(const f of cyc)occ[f]=1;
+  // --- phase 5: cut cycle + tails to top / bottom border
+  const neigh=(f)=>{const x=f%W,y=(f/W)|0,r=[];if(y>0)r.push(f-W);if(y<H-1)r.push(f+W);if(x>0)r.push(f-1);if(x<W-1)r.push(f+1);return r};
+  const bfsDist=(seedFn)=>{const d=new Int32Array(M).fill(-1);const q=new Int32Array(M);let h=0,tl=0;
+    for(let f=0;f<M;f++) if(!occ[f]&&seedFn(f)){d[f]=0;q[tl++]=f}
+    while(h<tl){const c=q[h++];for(const n of neigh(c)) if(!occ[n]&&d[n]<0){d[n]=d[c]+1;q[tl++]=n}}return d};
+  const sides={
+    top:{d:bfsDist(f=>f<W),on:f=>f<W},
+    bottom:{d:bfsDist(f=>f>=M-W),on:f=>f>=M-W},
+    left:{d:bfsDist(f=>f%W===0),on:f=>f%W===0},
+    right:{d:bfsDist(f=>f%W===W-1),on:f=>f%W===W-1}};
+  const costTo=(u,sd)=>{ if(sd.on(u))return 0; let best=1e9; for(const n of neigh(u)) if(!occ[n]&&sd.d[n]>=0) best=Math.min(best,sd.d[n]+1); return best };
+  // ordered (start side, end side) pairs; opposite sides get a small bonus
+  const pairs2=[['top','bottom',0],['bottom','top',2],['left','right',1],['right','left',3],
+    ['top','right',4],['top','left',4],['left','bottom',4],['right','bottom',4],['bottom','left',6],['bottom','right',6],['left','top',6],['right','top',6]];
+  const minSep=(W+H)/4;const cands=[];
+  for(let i=0;i<(opts.spine?0:L);i++){const u=cyc[i],v=cyc[(i+1)%L];
+    const cu={},cv={};for(const k in sides){cu[k]=costTo(u,sides[k]);cv[k]=costTo(v,sides[k])}
+    let best=1e9,bs=null;
+    const ux=u%W,uy=(u/W)|0;
+    const proj=(side)=>side==='top'?[ux,0]:side==='bottom'?[ux,H-1]:side==='left'?[0,uy]:[W-1,uy];
+    for(const [a,b,pen] of pairs2){
+      const pa=proj(a),pb=proj(b);if(Math.abs(pa[0]-pb[0])+Math.abs(pa[1]-pb[1])<minSep)continue;
+      let s1=cu[a]+cv[b]+pen; if(s1<best){best=s1;bs=[u,v,a,b]}
+      let s2=cv[a]+cu[b]+pen; if(s2<best){best=s2;bs=[v,u,a,b]}}
+    if(best<1e8)cands.push([best+rnd()*2,...bs]);}
+  cands.sort((a,b)=>a[0]-b[0]);
+  const used=new Uint8Array(M);
+  const tailBFS=(start,isGoal)=>{ if(isGoal(start))return [];
+    const pr=new Int32Array(M).fill(-2);const q=[start];pr[start]=-1;let h=0;
+    while(h<q.length){const c=q[h++];
+      if(c!==start&&isGoal(c)){const p=[];let x=c;while(x!==start){p.push(x);x=pr[x]}return p.reverse()}
+      const ns=neigh(c);for(let k=ns.length-1;k>0;k--){const j=(rnd()*(k+1))|0;[ns[k],ns[j]]=[ns[j],ns[k]]}
+      for(const n of ns) if(!occ[n]&&!used[n]&&pr[n]===-2){pr[n]=c;q.push(n)}}
+    return null};
+  let sCell=-1,eCell=-1,tailS=null,tailE=null;
+  let sSide=null,eSide=null;
+  for(let k=0,tries=0;k<cands.length&&tries<60;k++){const [,s,e,sa,sb]=cands[k];
+    // quick reject: both endpoints already sit on borders close together
+    tries++;
+    const ts=tailBFS(s,sides[sa].on);if(!ts)continue;for(const f of ts)used[f]=1;
+    const te=tailBFS(e,sides[sb].on);
+    const es=ts.length?ts[ts.length-1]:s, ee=te&&te.length?te[te.length-1]:e;
+    if(!te||Math.abs(es%W-ee%W)+Math.abs(((es/W)|0)-((ee/W)|0))<minSep){for(const f of ts)used[f]=0;continue}
+    sCell=s;eCell=e;tailS=ts;tailE=te;sSide=sa;eSide=sb;break;}
+  if(typeof DEBUG!=="undefined")console.log("cands",cands.length,cands.slice(0,5).map(c=>[c[0]|0,c[3],c[4],c[1]%W,(c[1]/W)|0]));
+  let path;
+  if(opts.spine){
+    // one-sided spine along a border column: walk it top to bottom, taking each side branch on the way
+    const X=opts.spine==='right'?cw-1:0;path=[];
+    const other=(cur,prev)=>nA[cur]!==prev?nA[cur]:nB[cur];
+    for(let y=0;y<ch;y++){const c=y*cw+X;const TL=(2*y)*W+2*X,TR=TL+1,BL=TL+W,BR=BL+1;
+      if(opts.spine==='right'){
+        path.push(TR,TL);
+        if(X>0&&treeR[c-1]){let prev=TL,cur=TL-1;while(cur!==BL){path.push(cur);const nx=other(cur,prev);prev=cur;cur=nx}}
+        path.push(BL,BR);
+      } else {
+        path.push(TL,TR);
+        if(X<cw-1&&treeR[c]){let prev=TR,cur=TR+1;while(cur!==BR){path.push(cur);const nx=other(cur,prev);prev=cur;cur=nx}}
+        path.push(BR,BL);
+      }}
+    sSide='top';eSide='bottom';
+  } else if(sCell>=0){
+    path=[];
+    for(let i=tailS.length-1;i>=0;i--)path.push(tailS[i]);
+    {const p=cyc.indexOf(sCell);const dir=(cyc[(p+1)%L]===eCell)?-1:1;
+      for(let k=0;k<L;k++)path.push(cyc[((p+dir*k)%L+L)%L]);}
+    for(const f of tailE)path.push(f);
+  } else {
+    // picture fills the borders, no room for lead-in lines: rebuild with a spine on the darker side
+    let sl=0,sr=0;for(let y=0;y<ch;y++){sl+=t[y*cw];sr+=t[y*cw+cw-1]}
+    return generateMaze(t,cw,ch,Object.assign({},opts,{spine:sr>=sl?'right':'left'}));
+  }
+  // --- phase 6: perfect maze around the fixed solution path
+  const openR=new Uint8Array(M), openD=new Uint8Array(M), vis=new Uint8Array(M);
+  const open=(a,b)=>{ if(b===a+1)openR[a]=1; else if(a===b+1)openR[b]=1; else if(b===a+W)openD[a]=1; else openD[b]=1; };
+  for(let i=0;i<path.length;i++){vis[path[i]]=1;if(i)open(path[i-1],path[i])}
+  {
+    const pNew=0.55+0.44*(opts.branchiness==null?0.6:opts.branchiness);
+    const act=path.slice();
+    for(let i=act.length-1;i>0;i--){const j=(rnd()*(i+1))|0;const tmp=act[i];act[i]=act[j];act[j]=tmp}
+    const tmpN=[0,0,0,0];
+    while(act.length){
+      let idx=rnd()<pNew?act.length-1:(rnd()*act.length)|0;
+      const c=act[idx],x=c%W,y=(c/W)|0;let n=0;
+      if(x>0&&!vis[c-1])tmpN[n++]=c-1; if(x<W-1&&!vis[c+1])tmpN[n++]=c+1;
+      if(y>0&&!vis[c-W])tmpN[n++]=c-W; if(y<H-1&&!vis[c+W])tmpN[n++]=c+W;
+      if(!n){act[idx]=act[act.length-1];act.pop();continue}
+      const nx=tmpN[(rnd()*n)|0];vis[nx]=1;open(c,nx);act.push(nx);
+    }
+  }
+  return {W,H,openR,openD,path,coarseS:inS,cw,ch,startSide:sSide,endSide:eSide};
+}
+
+// side of the outer wall where an endpoint opens, or null
+function borderSide(f,W,H){const x=f%W,y=(f/W)|0;if(y===0)return'top';if(y===H-1)return'bottom';if(x===0)return'left';if(x===W-1)return'right';return null}
+
+// wall segments merged along lines, in cell units: [x1,y1,x2,y2,...]
+function wallSegments(m){
+  const {W,H,openR,openD,path}=m;const segs=[];
+  const s=path[0],e=path[path.length-1];
+  const so=m.startSide, eo=m.endSide;
+  const gap=(f,side)=>(f===s&&so===side)||(f===e&&eo===side&&!(f===s&&so===side));
+  // horizontal lines
+  for(let k=0;k<=H;k++){let run=-1;
+    for(let x=0;x<=W;x++){let wall=false;
+      if(x<W){ if(k===0) wall=!gap(x,'top'); else if(k===H) wall=!gap((H-1)*W+x,'bottom'); else wall=!openD[(k-1)*W+x]; }
+      if(wall&&run<0)run=x; else if(!wall&&run>=0){segs.push(run,k,x,k);run=-1}}}
+  for(let k=0;k<=W;k++){let run=-1;
+    for(let y=0;y<=H;y++){let wall=false;
+      if(y<H){ if(k===0) wall=!gap(y*W,'left'); else if(k===W) wall=!gap(y*W+W-1,'right'); else wall=!openR[y*W+k-1]; }
+      if(wall&&run<0)run=y; else if(!wall&&run>=0){segs.push(k,run,k,y);run=-1}}}
+  return segs;
+}
+
+// solution polyline (cell units), extended out through the openings, collinear points merged
+function solutionPolyline(m){
+  const {W,H,path}=m;const pts=[];
+  const ext=(f,side)=>{const x=f%W+0.5,y=((f/W)|0)+0.5;
+    if(side==='top')return[x,y-1.2];if(side==='bottom')return[x,y+1.2];if(side==='left')return[x-1.2,y];if(side==='right')return[x+1.2,y];return null};
+  const a=ext(path[0],m.startSide);if(a)pts.push(a);
+  for(const f of path)pts.push([f%W+0.5,((f/W)|0)+0.5]);
+  const b=ext(path[path.length-1],m.endSide);if(b)pts.push(b);
+  const out=[pts[0]];
+  for(let i=1;i<pts.length-1;i++){const p=out[out.length-1],q=pts[i],r=pts[i+1];
+    if((q[0]-p[0])*(r[1]-q[1])-(q[1]-p[1])*(r[0]-q[0])!==0)out.push(q)}
+  out.push(pts[pts.length-1]);return out;
+}
+
+
+</script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const PAPERS={A4:[210,297],A3:[297,420],A2:[420,594],Letter:[215.9,279.4]};
+const MARGIN=12; // mm
+const MAX_CELLS=420000;
+const EMOJI=['🐱','🐶','🦊','🐼','🦁','🐸','🐵','🦉','🐢','🐙','🦄','🐧','🐨','🐯','🐮','🐷','🐰','🚀','⭐','🌻','🍄','⚓','🎸','👻','🦖','🐳','🍎','🎃','☂️','🦋'];
+
+const state={src:null,srcName:'',seed:(Math.random()*1e9)>>>0,maze:null,segs:null,poly:null,mm:0,view:'puzzle',zoom:1,stale:false,target:null,dims:null};
+
+// ---------- downloads (claude.ai capability, or normal browser download on your own hosting)
+let downloads=null; const inClaude=!!(window.claude&&window.claude.use);
+if(inClaude){ try{ window.claude.use('downloads').then(d=>{downloads=d}).catch(()=>{}) }catch(e){} }
+async function saveBlob(name,blob){
+  const cap=window.Capacitor;
+  if(cap&&cap.isNativePlatform&&cap.isNativePlatform()){
+    // Android app: save to cache and open the share sheet (print, Drive, e-mail...)
+    try{
+      const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
+      const {Filesystem,Share}=cap.Plugins;
+      const w=await Filesystem.writeFile({path:name,data:b64,directory:'CACHE'});
+      await Share.share({title:name,url:w.uri,dialogTitle:'Uložit nebo vytisknout PDF'});
+      setStatus('PDF připraveno.');
+    }catch(e){ if(!/cancel/i.test(String(e&&e.message)))setStatus('PDF se nepodařilo uložit: '+((e&&e.message)||e),true); }
+    return;
+  }
+  if(downloads){
+    try{ await downloads.save({filename:name,data:blob}); setStatus('PDF uloženo.'); }
+    catch(e){ if(e&&e.code==='declined') setStatus('Stažení zrušeno.'); else setStatus('PDF se nepodařilo uložit ('+((e&&e.code)||'chyba')+').',true); }
+    return;
+  }
+  if(inClaude){ setStatus('Stahování tady není k dispozici. Otevři stránku v prohlížeči nebo ji nahraj na vlastní web.',true); return; }
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000); setStatus('PDF staženo.');
+}
+
+function setStatus(msg,warn){const s=$('status');s.textContent=msg||'';s.classList.toggle('warn',!!warn)}
+const fmt=(n,d=0)=>n.toLocaleString('cs-CZ',{minimumFractionDigits:d,maximumFractionDigits:d});
+
+// ---------- image sources
+function setSourceFromImage(img,name){
+  const maxS=1600;const k=Math.min(1,maxS/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+  const w=Math.max(1,Math.round((img.naturalWidth||img.width)*k)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*k));
+  const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,w,h);x.imageSmoothingQuality='high';x.drawImage(img,0,0,w,h);
+  state.src=c;state.srcName=name;
+}
+function randomEmoji(){
+  const e=EMOJI[(Math.random()*EMOJI.length)|0];
+  const c=document.createElement('canvas');c.width=c.height=600;const x=c.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,600,600);
+  x.textAlign='center';x.textBaseline='middle';
+  x.font='460px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif';
+  x.fillText(e,300,325);
+  state.src=c;state.srcName='náhodný obrázek';
+}
+
+// ---------- settings
+const P=()=>({
+  contrast:+$('contrast').value, bright:+$('bright').value, sharp:+$('sharp').value, maxcov:+$('maxcov').value,
+  invert:$('invert').checked, fill:$('fill').checked, paper:$('paper').value, orient:$('orient').value,
+  cell:+$('cell').value, branch:+$('branch').value, zoom:+$('zoom').value, px:+$('px').value, py:+$('py').value });
+
+function computeDims(p){
+  const [a,b]=PAPERS[p.paper];const asp=state.src?state.src.width/state.src.height:0.75;
+  const ors=p.orient==='auto'?['p','l']:[p.orient];let best=null;
+  for(const o of ors){
+    const pw=(o==='p'?a:b)-2*MARGIN, ph=(o==='p'?b:a)-2*MARGIN;
+    let wMax=Math.floor(pw/p.cell),hMax=Math.floor(ph/p.cell),W=wMax,H=hMax;
+    if(!p.fill){H=Math.round(W/asp);if(H>hMax){H=hMax;W=Math.round(H*asp)}}
+    W-=W%2;H-=H%2;W=Math.max(W,4);H=Math.max(H,4);
+    if(!best||W*H>best.W*best.H)best={W,H,o,paperW:o==='p'?a:b,paperH:o==='p'?b:a};
+  }
+  return best;
+}
+
+function computeTarget(p,cw,ch){
+  const src=state.src;const k=Math.max(1,Math.min(4,Math.floor(1400/Math.max(cw,ch))));
+  const w=cw*k,h=ch*k;const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});
+  x.fillStyle='#fff';x.fillRect(0,0,w,h);x.imageSmoothingQuality='high';
+  let sw=src.width,sh=src.height;
+  if(p.fill){const ta=cw/ch,sa=sw/sh;if(sa>ta)sw=sh*ta;else sh=sw/ta}
+  sw/=p.zoom;sh/=p.zoom;
+  const sx=(src.width-sw)*p.px, sy=(src.height-sh)*p.py;
+  x.drawImage(src,sx,sy,sw,sh,0,0,w,h);
+  const d=x.getImageData(0,0,w,h).data;const N=cw*ch;let L=new Float32Array(N);
+  for(let y=0;y<ch;y++)for(let xx=0;xx<cw;xx++){let s=0;
+    for(let j=0;j<k;j++)for(let i=0;i<k;i++){const o=((y*k+j)*w+xx*k+i)*4;s+=(0.2126*d[o]+0.7152*d[o+1]+0.0722*d[o+2])/255}
+    L[y*cw+xx]=s/(k*k);}
+  // auto levels
+  const sorted=Float32Array.from(L).sort();const lo=sorted[Math.floor(N*0.01)],hi=sorted[Math.floor(N*0.99)];
+  const rng=Math.max(0.05,hi-lo);for(let i=0;i<N;i++)L[i]=(L[i]-lo)/rng;
+  // unsharp mask
+  if(p.sharp>0){const B=new Float32Array(N);
+    for(let y=0;y<ch;y++)for(let xx=0;xx<cw;xx++){let s=0,n=0;for(let dy=-1;dy<=1;dy++){const yy=y+dy;if(yy<0||yy>=ch)continue;for(let dx=-1;dx<=1;dx++){const x2=xx+dx;if(x2<0||x2>=cw)continue;s+=L[yy*cw+x2];n++}}B[y*cw+xx]=s/n}
+    for(let i=0;i<N;i++)L[i]=L[i]+p.sharp*(L[i]-B[i]);}
+  const t=new Float32Array(N);
+  for(let i=0;i<N;i++){let v=(L[i]-0.5)*p.contrast+0.5+p.bright;v=Math.min(1,Math.max(0,v));let dk=1-v;if(p.invert)dk=1-dk;t[i]=Math.pow(dk,0.8)*p.maxcov}
+  return t;
+}
+
+// ---------- thumbnail + info
+function updateThumb(){
+  const p=P();const dm=computeDims(p);state.dims=dm;
+  const cw=dm.W/2,ch=dm.H/2;
+  $('gridinfo').innerHTML=`Mřížka <strong>${dm.W} × ${dm.H}</strong> políček (${fmt(dm.W*dm.H)}), ${dm.o==='p'?'na výšku':'na šířku'}, plocha ${fmt(dm.W*p.cell/10,1)} × ${fmt(dm.H*p.cell/10,1)} cm.`;
+  if(dm.W*dm.H>MAX_CELLS) $('gridinfo').innerHTML+=' <strong>To už je hodně, generování může chvíli trvat.</strong>';
+  if(!state.src)return;
+  const t=computeTarget(p,cw,ch);state.target=t;
+  const th=$('thumb');th.width=cw;th.height=ch;const x=th.getContext('2d');const im=x.createImageData(cw,ch);
+  for(let i=0;i<cw*ch;i++){const v=255-Math.round(t[i]*255);im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}
+  x.putImageData(im,0,0);
+}
+
+function markStale(){ if(state.maze&&!state.stale){state.stale=true;setStatus('Nastavení se změnilo. Klikni na „Vytvořit bludiště“ pro novou verzi.')} }
+
+// ---------- generate
+function generate(){
+  if(!state.src)return;
+  $('busy').classList.add('on');$('gen').disabled=true;
+  setTimeout(()=>{
+    try{
+      const p=P();updateThumb();const dm=state.dims;
+      const t0=performance.now();
+      const m=generateMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch});
+      state.maze=m;state.segs=wallSegments(m);state.poly=solutionPolyline(m);state.mm=p.cell;state.paper=p.paper;state.dm=dm;
+      state.stale=false;
+      const len=m.path.length*p.cell/1000;
+      $('mazeinfo').innerHTML=`Varianta ${state.seed%10000}. Správná cesta má <strong>${fmt(m.path.length)}</strong> políček, po vytištění zhruba <strong>${fmt(len,1)} m</strong> čáry.`;
+      setStatus(`Hotovo za ${fmt((performance.now()-t0)/1000,1)} s.`);
+      ['pdfPuzzle','pdfSolution','pdfBoth'].forEach(id=>$(id).disabled=false);
+      render();
+    }catch(e){console.error(e);setStatus('Generování selhalo: '+e.message,true)}
+    $('busy').classList.remove('on');$('gen').disabled=false;
+  },40);
+}
+
+// ---------- canvas preview
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function arrowPts(side,cx,cy,size,inward){
+  // returns triangle points; cx,cy = cell center
+  const dir={top:[0,1],bottom:[0,-1],left:[1,0],right:[-1,0]}[side];
+  const d=inward?dir:[-dir[0],-dir[1]];
+  const off=0.5+size*0.75+0.15; // in cells, from cell center outward
+  const ox=cx-dir[0]*off, oy=cy-dir[1]*off;
+  const tip=[ox+d[0]*size*0.55,oy+d[1]*size*0.55], bx=ox-d[0]*size*0.45, by=oy-d[1]*size*0.45;
+  const px=-d[1],py=d[0];
+  return [tip,[bx+px*size*0.5,by+py*size*0.5],[bx-px*size*0.5,by-py*size*0.5]];
+}
+function render(){
+  const m=state.maze;if(!m)return;const cv=$('cv');
+  const pad=3;const sc=Math.max(2,Math.min(14,Math.floor(2600/Math.max(m.W,m.H))));
+  cv.width=(m.W+pad*2)*sc;cv.height=(m.H+pad*2)*sc;
+  cv.style.width=(state.zoom*100)+'%';
+  const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);
+  x.save();x.translate(pad*sc,pad*sc);x.lineCap='square';
+  const ink='#18254F';
+  if(state.view!=='reveal'){
+    x.strokeStyle=state.view==='solution'?'#B9C2D6':ink;x.lineWidth=Math.max(1,sc*0.14);
+    x.beginPath();const s=state.segs;for(let i=0;i<s.length;i+=4){x.moveTo(s[i]*sc,s[i+1]*sc);x.lineTo(s[i+2]*sc,s[i+3]*sc)}x.stroke();
+  }
+  if(state.view!=='puzzle'){
+    x.strokeStyle=state.view==='solution'?'#E0458B':'#111';x.lineWidth=sc*(state.view==='solution'?0.5:0.94);
+    x.lineJoin='round';x.lineCap='round';x.beginPath();const pl=state.poly;x.moveTo(pl[0][0]*sc,pl[0][1]*sc);
+    for(let i=1;i<pl.length;i++)x.lineTo(pl[i][0]*sc,pl[i][1]*sc);x.stroke();
+  }
+  // markers
+  x.fillStyle=ink;
+  const mark=(f,side,inward)=>{const cx=f%m.W+0.5,cy=((f/m.W)|0)+0.5;
+    if(side){const size=Math.min(2.2,Math.max(1.2,12/sc));const t=arrowPts(side,cx,cy,size,inward);x.beginPath();x.moveTo(t[0][0]*sc,t[0][1]*sc);x.lineTo(t[1][0]*sc,t[1][1]*sc);x.lineTo(t[2][0]*sc,t[2][1]*sc);x.closePath();x.fill()}
+    else{x.beginPath();x.arc(cx*sc,cy*sc,sc*0.35,0,Math.PI*2);x.fill()}};
+  mark(m.path[0],m.startSide,true);mark(m.path[m.path.length-1],m.endSide,false);
+  x.restore();
+}
+
+// ---------- PDF
+function pdfPage(doc,kind){
+  const m=state.maze,s=state.mm,dm=state.dm;
+  const pw=dm.paperW,ph=dm.paperH;const ox=(pw-m.W*s)/2,oy=(ph-m.H*s)/2;
+  const P=(cx,cy)=>[ox+cx*s,oy+cy*s];
+  doc.setLineCap('butt');doc.setLineJoin('miter');
+  const wallW=Math.min(0.35,Math.max(0.13,s*0.075));
+  doc.setDrawColor(kind==='solution'?175:24,kind==='solution'?184:37,kind==='solution'?204:79);
+  doc.setLineWidth(kind==='solution'?Math.max(0.1,wallW*0.7):wallW);
+  const g=state.segs;
+  for(let i=0;i<g.length;i+=4){const a=P(g[i],g[i+1]),b=P(g[i+2],g[i+3]);doc.moveTo(a[0],a[1]);doc.lineTo(b[0],b[1])}
+  doc.stroke();
+  if(kind==='solution'){
+    doc.setDrawColor(20,20,20);doc.setLineWidth(s*0.78);doc.setLineCap('round');doc.setLineJoin('round');
+    const pl=state.poly;let a=P(pl[0][0],pl[0][1]);doc.moveTo(a[0],a[1]);
+    for(let i=1;i<pl.length;i++){a=P(pl[i][0],pl[i][1]);doc.lineTo(a[0],a[1])}
+    doc.stroke();
+  }
+  doc.setFillColor(24,37,79);
+  const mark=(f,side,inward)=>{const cx=f%m.W+0.5,cy=((f/m.W)|0)+0.5;
+    if(side){const size=Math.max(3.2,Math.min(6,s*1.6))/s;const t=arrowPts(side,cx,cy,size,inward).map(q=>P(q[0],q[1]));
+      doc.triangle(t[0][0],t[0][1],t[1][0],t[1][1],t[2][0],t[2][1],'F')}
+    else{const c=P(cx,cy);doc.circle(c[0],c[1],s*0.35,'F')}};
+  mark(m.path[0],m.startSide,true);mark(m.path[m.path.length-1],m.endSide,false);
+}
+function makePDF(kinds){
+  const {jsPDF}=window.jspdf;const dm=state.dm;
+  const fmtName=state.paper==='Letter'?'letter':state.paper.toLowerCase();
+  const doc=new jsPDF({unit:'mm',format:fmtName,orientation:dm.o==='p'?'portrait':'landscape',compress:true});
+  doc.setProperties({title:'Bludiste s prekvapenim'});
+  kinds.forEach((k,i)=>{if(i)doc.addPage(fmtName,dm.o==='p'?'portrait':'landscape');pdfPage(doc,k)});
+  return doc.output('blob');
+}
+function exportPDF(kinds,suffix){
+  if(!state.maze)return;
+  if(!window.jspdf){setStatus('Knihovna pro PDF se nenačetla. Zkontroluj připojení a obnov stránku.',true);return}
+  setStatus('Připravuji PDF…');
+  setTimeout(()=>{try{const blob=makePDF(kinds);saveBlob(`bludiste-${state.seed%10000}-${suffix}.pdf`,blob)}catch(e){console.error(e);setStatus('PDF se nepodařilo vytvořit: '+e.message,true)}},30);
+}
+
+function resetCrop(){$('zoom').value=1;$('px').value=0.5;$('py').value=0.5;syncOutputs()}
+// ---------- wiring
+function syncOutputs(){
+  $('contrastV').textContent=fmt(+$('contrast').value,2)+'×';
+  $('brightV').textContent=(+$('bright').value>0?'+':'')+fmt(+$('bright').value*100)+' %';
+  $('sharpV').textContent=fmt(+$('sharp').value,1);
+  $('maxcovV').textContent=fmt(+$('maxcov').value*100)+' %';
+  $('zoomV').textContent=fmt(+$('zoom').value,1)+'×';
+  $('pxV').textContent=fmt(+$('px').value*100)+' %';$('pyV').textContent=fmt(+$('py').value*100)+' %';
+  $('cellV').textContent=fmt(+$('cell').value,1)+' mm';
+  const b=+$('branch').value;$('branchV').textContent=b<0.34?'krátké':b<0.67?'střední':'dlouhé';
+  document.querySelectorAll('[data-cell]').forEach(bt=>bt.setAttribute('aria-pressed',String(Math.abs(+bt.dataset.cell-+$('cell').value)<0.01)));
+}
+let thumbTimer=0;
+function onSetting(){syncOutputs();clearTimeout(thumbTimer);thumbTimer=setTimeout(updateThumb,60);markStale()}
+['contrast','bright','sharp','maxcov','cell','branch','zoom','px','py'].forEach(id=>$(id).addEventListener('input',onSetting));
+['invert','fill','paper','orient'].forEach(id=>$(id).addEventListener('change',onSetting));
+document.querySelectorAll('[data-cell]').forEach(bt=>bt.addEventListener('click',()=>{$('cell').value=bt.dataset.cell;onSetting()}));
+
+$('file').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  const url=URL.createObjectURL(f);const img=new Image();
+  img.onload=()=>{setSourceFromImage(img,f.name);resetCrop();URL.revokeObjectURL(url);$('thumbinfo').textContent='Takhle zhruba bude vypadat „'+f.name+'“ po vyřešení. Upravuj posuvníky, pak vytvoř bludiště.';updateThumb();generate()};
+  img.onerror=()=>{setStatus('Tenhle soubor se nedá otevřít jako obrázek. Zkus JPG nebo PNG.',true)};
+  img.src=url;e.target.value='';
+});
+$('rand').addEventListener('click',()=>{randomEmoji();resetCrop();$('thumbinfo').textContent='Náhodný obrázek. Další dostaneš dalším kliknutím.';state.seed=(Math.random()*1e9)>>>0;updateThumb();generate()});
+$('gen').addEventListener('click',generate);
+$('reseed').addEventListener('click',()=>{state.seed=(Math.random()*1e9)>>>0;generate()});
+document.querySelectorAll('[data-view]').forEach(bt=>bt.addEventListener('click',()=>{
+  state.view=bt.dataset.view;document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===bt)));render()}));
+document.querySelectorAll('[data-zoom]').forEach(bt=>bt.addEventListener('click',()=>{
+  state.zoom=+bt.dataset.zoom;document.querySelectorAll('[data-zoom]').forEach(b=>b.setAttribute('aria-pressed',String(b===bt)));
+  $('cv').style.width=(state.zoom*100)+'%'}));
+$('pdfPuzzle').addEventListener('click',()=>exportPDF(['puzzle'],'zadani'));
+$('pdfSolution').addEventListener('click',()=>exportPDF(['solution'],'reseni'));
+$('pdfBoth').addEventListener('click',()=>exportPDF(['puzzle','solution'],'zadani-a-reseni'));
+
+if('serviceWorker' in navigator&&location.protocol==='https:'&&!inClaude&&!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+syncOutputs();
+// first run: a random picture so the page is never empty
+const start=()=>{randomEmoji();updateThumb();generate()};
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(start);else start();
+})();
+
+</script>
+</body>
+</html>
