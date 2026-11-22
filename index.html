@@ -328,7 +328,7 @@ function treeFromDots(D,t,cw,ch,rnd,spine){
       if(y<ch-1&&lab[c]!==lab[c+cw])pairs.push([dist[c]+dist[c+cw]+rnd()*0.5,c,c+cw]);}
     pairs.sort((a,b)=>a[0]-b[0]);
     const uf2=makeUF(N);
-    const chain=(x)=>{ while(dist[x]>0&&!inS[x]){ const p=par[x]; addEdge(x,p); x=p; } };
+    const chain=(x)=>{ if(inS[x])return; while(dist[x]>0){ const p=par[x]; const stop=inS[p]; addEdge(x,p); if(stop)return; x=p; } };
     for(const [,a,b] of pairs){ if(!uf2.union(lab[a],lab[b]))continue;
       chain(a);chain(b);addEdge(a,b);}
   }
