@@ -71,7 +71,10 @@ input[type=file]{position:absolute; width:1px; height:1px; opacity:0}
 .thumbinfo{font-size:15px; color:var(--ink-soft); margin:8px 0 0}
 .hint{font-size:13px; color:var(--ink-soft); display:block}
 .pv{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--paper); padding:8px 0 6px; margin:-8px 0 0; border-bottom:1.5px solid var(--line)}
-.pv .editor{margin:0}
+.pv .editor{margin:0; gap:8px; align-items:flex-start}
+.pvfig{margin:0; display:flex; flex-direction:column; align-items:center; gap:3px}
+.pvfig figcaption{font-size:13px; color:#4A5578}
+#thumbGray{display:block; image-rendering:pixelated}
 .pvcap{font-size:13px; color:var(--ink-soft); margin:4px 2px 0; text-align:center}
 .segfull{display:flex; width:100%}
 .segfull button{flex:1}
@@ -132,9 +135,9 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
     <section class="controls" aria-label="Nastavení">
       <div class="pv" id="pv">
         <div class="editor" id="editorWrap">
-          <canvas id="thumb" width="96" height="96" aria-label="Náhled obrázku, který vznikne po vyřešení"></canvas>
+          <figure class="pvfig"><canvas id="thumbGray" width="96" height="96" aria-label="Upravená černobílá fotka"></canvas><figcaption>Fotka</figcaption></figure>
+          <figure class="pvfig"><canvas id="thumb" width="96" height="96" aria-label="Obrázek, který vznikne po vyřešení"></canvas><figcaption>Po vyřešení</figcaption></figure>
         </div>
-        <p class="pvcap" id="thumbinfo">Takhle bude vypadat obrázek po obtažení cesty.</p>
       </div>
 
       <div class="panel">
@@ -640,8 +643,12 @@ function updateThumb(){
   const S=buildTree(t,cw,ch,mulberry32(state.seed>>>0),{}).inS;
   for(let i=0;i<cw*ch;i++){const v=S[i]?24:255;im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}
   x.putImageData(im,0,0);
-  const avail=Math.max(120,$('editorWrap').clientWidth-14),maxH=window.innerWidth<960?window.innerHeight*0.27:Math.min(460,window.innerHeight*0.45);
-  const k=Math.min(avail/cw,maxH/ch);th.style.width=Math.round(cw*k)+'px';th.style.height=Math.round(ch*k)+'px';
+  const tg=$('thumbGray');tg.width=cw;tg.height=ch;const gx=tg.getContext('2d');const gi=gx.createImageData(cw,ch);
+  for(let i=0;i<cw*ch;i++){const v=255-Math.round(Math.min(1,t[i]/Math.max(0.01,p.maxcov))*255);gi.data[i*4]=gi.data[i*4+1]=gi.data[i*4+2]=v;gi.data[i*4+3]=255}
+  gx.putImageData(gi,0,0);
+  const avail=Math.max(100,($('editorWrap').clientWidth-22)/2),maxH=window.innerWidth<960?window.innerHeight*0.24:Math.min(360,window.innerHeight*0.4);
+  const k=Math.min(avail/cw,maxH/ch);
+  for(const c of [th,tg]){c.style.width=Math.round(cw*k)+'px';c.style.height=Math.round(ch*k)+'px'}
   renderPaint();
 }
 
