@@ -1,44 +1,86 @@
-name: Android APK
+name: Bludiště – web a APK
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: build
+  cancel-in-progress: true
+
 jobs:
-  build:
+  unpack:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rozbalit nahraný zip
+        run: |
+          shopt -s nullglob
+          zips=( *.zip )
+          if [ ${#zips[@]} -eq 0 ]; then echo "Žádný zip, nic k rozbalení."; exit 0; fi
+          rm -rf /tmp/x && mkdir /tmp/x
+          for z in "${zips[@]}"; do unzip -o -q "$z" -d /tmp/x; done
+          src=/tmp/x
+          if [ "$(ls -A /tmp/x | wc -l)" -eq 1 ] && [ -d "/tmp/x/$(ls -A /tmp/x)" ]; then src="/tmp/x/$(ls -A /tmp/x)"; fi
+          rm -rf "$src/.github"
+          cp -a "$src"/. .
+          rm -f -- "${zips[@]}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Rozbaleno ze zipu" && git push || echo "Beze změn"
+
+  web:
+    needs: unpack
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Připravit web
+        run: |
+          mkdir _site
+          for f in index.html jspdf.umd.min.js manifest.webmanifest sw.js icon-192.png icon-512.png mediapipe; do
+            [ -e "$f" ] && cp -r "$f" _site/
+          done
+          ls _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  apk:
+    needs: unpack
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          ref: ${{ github.ref_name }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-
-      - name: Install
-        run: npm install
-
-      - name: Prepare web files
-        run: npm run web
-
-      - name: Create Android project
-        run: |
-          npx cap add android
-          npx cap sync android
-
-      - name: Build APK
+      - run: npm install
+      - run: npm run web
+      - run: npx cap add android && npx cap sync android
+      - name: Sestavit APK
         working-directory: android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
-
+        run: chmod +x gradlew && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: bludiste-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
-          
