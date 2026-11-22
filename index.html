@@ -51,6 +51,12 @@ header p{margin:10px 0 0; color:var(--ink-soft)}
 .layout{display:grid; grid-template-columns:minmax(0,1fr); gap:18px}
 @media (min-width:960px){ .layout{grid-template-columns:380px minmax(0,1fr); align-items:start}
   .stage{position:sticky; top:calc(env(safe-area-inset-top,0px) + 12px)} }
+.fold>summary{list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; min-height:36px}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary h2{margin:0}
+.fold>summary::after{content:"▾"; font-size:20px; color:var(--ink-soft); transition:transform .15s}
+.fold:not([open])>summary::after{transform:rotate(-90deg)}
+.fold[open]>summary{margin-bottom:12px}
 .panel{background:var(--surface); border:1.5px solid var(--line); border-radius:14px; padding:16px}
 .controls{display:flex; flex-direction:column; gap:14px}
 .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
@@ -77,7 +83,7 @@ input[type=file]{position:absolute; width:1px; height:1px; opacity:0}
 #thumbGray{display:block; image-rendering:pixelated}
 .pvcap{font-size:13px; color:var(--ink-soft); margin:4px 2px 0; text-align:center}
 .segfull{display:flex; width:100%}
-.segfull button{flex:1; padding:8px 4px; font-size:14px}
+.segfull button{flex:1 1 0; min-width:0; padding:8px 2px; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .selects.one{grid-template-columns:1fr; margin-top:12px}
 #cropBtns,#brushOpts{margin-top:6px}
 #draw{display:block; max-width:100%; touch-action:auto; background:#fff}
@@ -99,7 +105,8 @@ textarea{font:inherit; width:100%; padding:10px; border-radius:10px; border:1.5p
 .field input[type=range]{grid-column:1 / -1; width:100%; accent-color:var(--ink)}
 .field .hint{grid-column:1 / -1; font-size:13px; color:var(--ink-soft)}
 select{font:inherit; padding:8px 10px; border-radius:10px; border:1.5px solid var(--line); background:var(--surface); color:var(--ink); min-height:44px; width:100%}
-.selects{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.selects{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px}
+.selects select{min-width:0}
 .selects label{font-size:14px; font-weight:700; display:block; margin-bottom:4px}
 .chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
 .chips button{min-height:36px; padding:6px 10px; font-size:14px; border-color:var(--line)}
@@ -153,16 +160,10 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
           <button id="drawBtn" class="grow" type="button">Nakreslit</button>
           <button id="rand" class="grow" type="button">Náhodný</button>
         </div>
-        <div class="field"><label for="contrast">Kontrast</label><output id="contrastV"></output><input id="contrast" type="range" min="0.5" max="2.5" step="0.05" value="1.25"></div>
-        <div class="field"><label for="bright">Jas</label><output id="brightV"></output><input id="bright" type="range" min="-0.5" max="0.5" step="0.02" value="0.06"></div>
-        <div class="field"><label for="sharp">Ostrost detailů</label><output id="sharpV"></output><input id="sharp" type="range" min="0" max="2" step="0.1" value="0.7"></div>
-        <div class="field"><label for="maxcov">Sytost tmavých míst</label><output id="maxcovV"></output><input id="maxcov" type="range" min="0.6" max="1" step="0.01" value="0.9">
-          <span class="hint">Pod 100 % zůstanou i v tmavých místech slepé odbočky, takže je bludiště těžší.</span></div>
-        <label class="check"><input id="invert" type="checkbox"> Obrátit světlé a tmavé</label>
       </div>
 
-      <div class="panel" id="drawPanel" hidden>
-        <h2>Kreslení</h2>
+      <details class="panel fold" id="drawPanel" hidden open>
+        <summary><h2>Kreslení</h2></summary>
         <div class="seg segfull" role="group" aria-label="Nástroj kreslení">
           <button type="button" data-dtool="off" aria-pressed="false">Vypnuto</button>
           <button type="button" data-dtool="pen" aria-pressed="true">Pero</button>
@@ -183,19 +184,10 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
           <button id="dText" type="button" class="grow">Vložit text</button>
         </div>
         <p class="hint">Text se vloží doprostřed přes celou šířku a pak kolem něj můžeš kreslit. Tlusté čáry a velké písmo vyjdou v bludišti nejlíp. Když chceš scrollovat přes plochu, přepni na Vypnuto.</p>
-      </div>
+      </details>
 
-      <div class="panel">
-        <h2>Hlavní postava</h2>
-        <div class="row"><button id="detect" type="button" class="grow">Najít postavu automaticky</button></div>
-        <p class="hint" id="detectStatus">Najde člověka na fotce a pozadí za ním ztlumí.</p>
-        <div class="field"><label for="bg">Pozadí za postavou</label><output id="bgV"></output><input id="bg" type="range" min="0" max="1" step="0.05" value="1" disabled></div>
-        <div class="field"><label for="vig">Ztlumit okraje</label><output id="vigV"></output><input id="vig" type="range" min="0" max="1" step="0.05" value="0">
-          <span class="hint">Vybledne všechno kromě oválu uprostřed výřezu.</span></div>
-      </div>
-
-      <div class="panel">
-        <h2>Oříznutí a štětec</h2>
+      <details class="panel fold" open>
+        <summary><h2>Oříznutí a štětec</h2></summary>
         <div class="seg segfull" role="group" aria-label="Nástroj">
           <button type="button" data-tool="off" aria-pressed="true">Vypnuto</button>
           <button type="button" data-tool="crop" aria-pressed="false">Oříznout</button>
@@ -212,10 +204,29 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
           <div class="field"><label for="bsize">Velikost štětce</label><output id="bsizeV"></output><input id="bsize" type="range" min="0.02" max="0.2" step="0.01" value="0.07"></div>
           <div class="row"><button id="clearMask" type="button" class="grow">Zrušit úpravy štětcem</button></div>
         </div>
-      </div>
+      </details>
 
-      <div class="panel">
-        <h2>Bludiště</h2>
+      <details class="panel fold">
+        <summary><h2>Úprava obrázku</h2></summary>
+        <div class="field"><label for="contrast">Kontrast</label><output id="contrastV"></output><input id="contrast" type="range" min="0.5" max="2.5" step="0.05" value="1.25"></div>
+        <div class="field"><label for="bright">Jas</label><output id="brightV"></output><input id="bright" type="range" min="-0.5" max="0.5" step="0.02" value="0.06"></div>
+        <div class="field"><label for="sharp">Ostrost detailů</label><output id="sharpV"></output><input id="sharp" type="range" min="0" max="2" step="0.1" value="0.7"></div>
+        <div class="field"><label for="maxcov">Sytost tmavých míst</label><output id="maxcovV"></output><input id="maxcov" type="range" min="0.6" max="1" step="0.01" value="0.9">
+          <span class="hint">Pod 100 % zůstanou i v tmavých místech slepé odbočky, takže je bludiště těžší.</span></div>
+        <label class="check"><input id="invert" type="checkbox"> Obrátit světlé a tmavé</label>
+      </details>
+
+      <details class="panel fold">
+        <summary><h2>Hlavní postava</h2></summary>
+        <div class="row"><button id="detect" type="button" class="grow">Najít postavu automaticky</button></div>
+        <p class="hint" id="detectStatus">Najde člověka na fotce a pozadí za ním ztlumí.</p>
+        <div class="field"><label for="bg">Pozadí za postavou</label><output id="bgV"></output><input id="bg" type="range" min="0" max="1" step="0.05" value="1" disabled></div>
+        <div class="field"><label for="vig">Ztlumit okraje</label><output id="vigV"></output><input id="vig" type="range" min="0" max="1" step="0.05" value="0">
+          <span class="hint">Vybledne všechno kromě oválu uprostřed výřezu.</span></div>
+      </details>
+
+      <details class="panel fold" open>
+        <summary><h2>Bludiště</h2></summary>
         <div class="selects">
           <div><label for="paper">Papír</label>
             <select id="paper"><option>A4</option><option>A3</option><option>A2</option><option value="Letter">Letter</option></select></div>
@@ -241,7 +252,7 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
         <label class="check"><input id="camo" type="checkbox" checked> Skrýt obrázek v zadání</label>
         <p class="hint">Slepé uličky se kreslí stejným stylem jako správná cesta, takže podle bludiště není poznat, co v něm je.</p>
         <p class="stats" id="gridinfo"></p>
-      </div>
+      </details>
 
       <div class="row">
         <button id="gen" class="primary grow" type="button">Vytvořit bludiště</button>
@@ -589,19 +600,16 @@ function generateMaze(t, cw, ch, opts){
   const openR=new Uint8Array(M), openD=new Uint8Array(M), vis=new Uint8Array(M);
   const open=(a,b)=>{ if(b===a+1)openR[a]=1; else if(a===b+1)openR[b]=1; else if(b===a+W)openD[a]=1; else openD[b]=1; };
   for(let i=0;i<path.length;i++){vis[path[i]]=1;if(i)open(path[i-1],path[i])}
-  // camouflage: dead ends built from the same 2×2 "tubes" as the picture, so the puzzle looks uniform
-  const tubeOf=new Int32Array(M).fill(-1), tubes=[];
+  // camouflage: the whole maze is built from the same 2×2 "tubes" as the picture, cut into pieces
+  // and joined at random places everywhere, so the puzzle looks the same in every part
   if(opts.camo){
+    const tq=opts.turns==null?0.6:opts.turns;const Lmax=Math.round(44-30*tq),Lmin=6;
     const free=new Uint8Array(N);
     for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const f=(2*y)*W+2*x;if(!vis[f]&&!vis[f+1]&&!vis[f+W]&&!vis[f+W+1])free[y*cw+x]=1}
-    const ufc=makeUF(N),size=new Int32Array(N).fill(1),cap=new Int32Array(N);
-    const capMax=60*(1-0.85*(opts.turns==null?0.6:opts.turns));for(let i=0;i<N;i++)cap[i]=2+((rnd()*rnd()*capMax)|0);
-    const tR=new Uint8Array(N),tD=new Uint8Array(N);const es=[];
+    const ufc=makeUF(N),tR=new Uint8Array(N),tD=new Uint8Array(N),es=[];
     for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!free[c])continue;if(x<cw-1&&free[c+1])es.push(c*2);if(y<ch-1&&free[c+cw])es.push(c*2+1)}
     for(let i=es.length-1;i>0;i--){const j=(rnd()*(i+1))|0;const tmp=es[i];es[i]=es[j];es[j]=tmp}
-    for(const e of es){const c=e>>1,n=(e&1)?c+cw:c+1;const a=ufc.find(c),b=ufc.find(n);if(a===b)continue;
-      if(size[a]+size[b]>Math.min(cap[a],cap[b]))continue;ufc.union(a,b);const r=ufc.find(a);size[r]=size[a]+size[b];cap[r]=Math.min(cap[a],cap[b]);
-      if(e&1)tD[c]=1;else tR[c]=1;}
+    for(const e of es){const c=e>>1,n=(e&1)?c+cw:c+1;if(ufc.union(c,n)){if(e&1)tD[c]=1;else tR[c]=1}}
     const lA=new Int32Array(M).fill(-1),lB=new Int32Array(M).fill(-1);
     const lk=(a,b)=>{if(lA[a]<0)lA[a]=b;else lB[a]=b;if(lA[b]<0)lA[b]=a;else lB[b]=a};
     for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!free[c])continue;
@@ -609,14 +617,21 @@ function generateMaze(t, cw, ch, opts){
       const up=y>0&&tD[c-cw],left=x>0&&tR[c-1],right=tR[c],down=tD[c];
       if(!up)lk(TL,TR);if(!down)lk(BL,BR);if(!left)lk(TL,BL);if(!right)lk(TR,BR);
       if(right){lk(TR,TL+2);lk(BR,BL+2)}if(down){lk(BL,BL+W);lk(BR,BR+W)}}
-    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!free[c])continue;const s0=(2*y)*W+2*x;if(tubeOf[s0]>=0)continue;
+    const unitOf=new Int32Array(M).fill(-1);for(const f of path)unitOf[f]=0;let units=1;
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!free[c])continue;const s0=(2*y)*W+2*x;if(unitOf[s0]>=0)continue;
       const cyc2=[];let prev=-1,cur=s0;do{cyc2.push(cur);const nx=lA[cur]!==prev?lA[cur]:lB[cur];prev=cur;cur=nx}while(cur!==s0);
-      const k=(rnd()*cyc2.length)|0;const tp=[];for(let i=0;i<cyc2.length;i++)tp.push(cyc2[(k+i)%cyc2.length]);
-      // split long tubes into pieces so the correct path gets more places to turn off
-      const tq=opts.turns==null?0.6:opts.turns;let i0=0;
-      while(i0<tp.length){const len=Math.max(4,Math.round(4+rnd()*(6+40*(1-tq))));const piece=tp.slice(i0,i0+len);i0+=len;
-        const id=tubes.length;tubes.push(piece);for(let i=0;i<piece.length;i++){tubeOf[piece[i]]=id;if(i)open(piece[i-1],piece[i])}}}
-  }
+      const k=(rnd()*cyc2.length)|0;let i0=0;
+      while(i0<cyc2.length){const len=Lmin+((rnd()*(Lmax-Lmin+1))|0);const id=units++;
+        for(let i=i0;i<Math.min(cyc2.length,i0+len);i++){const f=cyc2[(k+i)%cyc2.length];unitOf[f]=id;if(i>i0)open(cyc2[(k+i-1)%cyc2.length],f)}
+        i0+=len;}}
+    for(let f=0;f<M;f++)if(unitOf[f]<0)unitOf[f]=units++; // odd cells left over (e.g. beside lead-in lines)
+    // join all pieces and the correct path with randomly placed openings (a spanning tree over pieces)
+    const cand=[];for(let f=0;f<M;f++){const x=f%W;if(x<W-1&&unitOf[f]!==unitOf[f+1])cand.push(f*2);if(f+W<M&&unitOf[f]!==unitOf[f+W])cand.push(f*2+1)}
+    for(let i=cand.length-1;i>0;i--){const j=(rnd()*(i+1))|0;const tmp=cand[i];cand[i]=cand[j];cand[j]=tmp}
+    const ufu=makeUF(units);
+    for(const e of cand){const a=e>>1,b=(e&1)?a+W:a+1;if(ufu.union(unitOf[a],unitOf[b]))open(a,b)}
+  } else {
+  const tubeOf=new Int32Array(M).fill(-1), tubes=[];
   {
     const pNew=0.55+0.44*(opts.branchiness==null?0.6:opts.branchiness);
     const act=path.slice();
@@ -640,6 +655,7 @@ function generateMaze(t, cw, ch, opts){
       if(tb>=0){const tp=tubes[tb];for(const f of tp){vis[f]=1;act.push(f)}act.push(nx)}
       else{vis[nx]=1;act.push(nx)}
     }
+  }
   }
   return {W,H,openR,openD,path,coarseS:inS,cw,ch,startSide:sSide,endSide:eSide};
 }
@@ -1154,7 +1170,7 @@ $('dText').addEventListener('click',()=>{
   lines.forEach((l,i)=>x.fillText(l,dcv.width/2,top+i*lh));drawDirty=true;useDrawing();
 });
 $('drawBtn').addEventListener('click',()=>{
-  const panel=$('drawPanel');panel.hidden=false;
+  const panel=$('drawPanel');panel.hidden=false;panel.open=true;
   if(!drawInit)initDraw();else sizeDraw();
   setDTool('pen');if(drawDirty)useDrawing();
   panel.scrollIntoView({behavior:'smooth',block:'start'});
@@ -1217,6 +1233,7 @@ $('pdfSolution').addEventListener('click',()=>exportPDF(['solution'],'reseni'));
 $('pdfBoth').addEventListener('click',()=>exportPDF(['puzzle','solution'],'zadani-a-reseni'));
 $('pdfShare').addEventListener('click',sharePdf);
 
+document.querySelectorAll('details.fold').forEach(d=>d.addEventListener('toggle',()=>{if(d.open){renderPaint();if(drawInit)sizeDraw()}}));
 setTool('off');
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!inClaude&&!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
