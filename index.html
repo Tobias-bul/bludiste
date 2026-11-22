@@ -70,7 +70,18 @@ input[type=file]{position:absolute; width:1px; height:1px; opacity:0}
 #thumb.painting{touch-action:none; cursor:crosshair}
 .thumbinfo{font-size:15px; color:var(--ink-soft); margin:8px 0 0}
 .hint{font-size:13px; color:var(--ink-soft); display:block}
-.focus{margin:12px 0 2px}
+.pv{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--paper); padding:8px 0 6px; margin:-8px 0 0; border-bottom:1.5px solid var(--line)}
+.pv .editor{margin:0}
+.pvcap{font-size:13px; color:var(--ink-soft); margin:4px 2px 0; text-align:center}
+.segfull{display:flex; width:100%}
+.segfull button{flex:1}
+.paintwrap{margin:12px 0 6px; display:flex; justify-content:center; background:#fff; border:1.5px solid var(--line); border-radius:10px; padding:6px}
+#paint{display:block; max-width:100%; touch-action:auto}
+#paint.painting{touch-action:none; cursor:crosshair; outline:3px solid var(--marker); outline-offset:2px}
+.field{touch-action:pan-y}
+.field input[type=range]{pointer-events:none; height:32px}
+.field.dragging output{color:var(--ink); font-weight:700}
+
 .brushbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; margin:12px 0 4px}
 .blabel{font-weight:700; font-size:15px}
 .field{display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:center; margin:10px 0}
@@ -119,36 +130,19 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
 
   <div class="layout">
     <section class="controls" aria-label="Nastavení">
+      <div class="pv" id="pv">
+        <div class="editor" id="editorWrap">
+          <canvas id="thumb" width="96" height="96" aria-label="Náhled obrázku, který vznikne po vyřešení"></canvas>
+        </div>
+        <p class="pvcap" id="thumbinfo">Takhle bude vypadat obrázek po obtažení cesty.</p>
+      </div>
+
       <div class="panel">
         <h2>Obrázek</h2>
         <div class="row">
           <label class="btn grow" for="file">Nahrát fotku<input id="file" type="file" accept="image/*"></label>
           <button id="rand" class="grow" type="button">Náhodný obrázek</button>
         </div>
-        <div class="editor" id="editorWrap">
-          <canvas id="thumb" width="96" height="96" aria-label="Náhled toho, co se v bludišti ukáže"></canvas>
-        </div>
-        <p class="thumbinfo" id="thumbinfo">Takhle zhruba bude vypadat obrázek po vyřešení. Upravuj ho posuvníky níž.</p>
-        <details class="focus" open><summary>Zvýraznit hlavní postavu</summary>
-          <div class="row" style="margin-top:10px">
-            <button id="detect" type="button" class="grow">Najít postavu automaticky</button>
-          </div>
-          <p class="hint" id="detectStatus">Najde člověka na fotce a pozadí za ním ztlumí.</p>
-          <div class="field"><label for="bg">Pozadí za postavou</label><output id="bgV"></output><input id="bg" type="range" min="0" max="1" step="0.05" value="1" disabled></div>
-          <div class="field"><label for="vig">Ztlumit okraje</label><output id="vigV"></output><input id="vig" type="range" min="0" max="1" step="0.05" value="0">
-            <span class="hint">Vybledne všechno kromě oválu uprostřed výřezu.</span></div>
-          <div class="brushbar">
-            <span class="blabel">Štětec v náhledu</span>
-            <div class="seg" role="group" aria-label="Štětec">
-              <button type="button" data-brush="off" aria-pressed="true">Vypnutý</button>
-              <button type="button" data-brush="erase" aria-pressed="false">Smazat</button>
-              <button type="button" data-brush="keep" aria-pressed="false">Ponechat</button>
-            </div>
-          </div>
-          <div class="field"><label for="bsize">Velikost štětce</label><output id="bsizeV"></output><input id="bsize" type="range" min="0.02" max="0.2" step="0.01" value="0.07"></div>
-          <div class="row"><button id="clearMask" type="button" class="grow">Zrušit úpravy štětcem</button></div>
-          <span class="hint">Smazat vymaže část obrázku, třeba obrazy na zdi. Ponechat chrání místo před ztlumením.</span>
-        </details>
         <details class="crop"><summary>Výřez fotky</summary>
           <div class="field"><label for="zoom">Přiblížení</label><output id="zoomV"></output><input id="zoom" type="range" min="1" max="4" step="0.05" value="1"></div>
           <div class="field"><label for="px">Posun do stran</label><output id="pxV"></output><input id="px" type="range" min="0" max="1" step="0.01" value="0.5"></div>
@@ -165,6 +159,28 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
       </div>
 
       <div class="panel">
+        <h2>Hlavní postava</h2>
+        <div class="row"><button id="detect" type="button" class="grow">Najít postavu automaticky</button></div>
+        <p class="hint" id="detectStatus">Najde člověka na fotce a pozadí za ním ztlumí.</p>
+        <div class="field"><label for="bg">Pozadí za postavou</label><output id="bgV"></output><input id="bg" type="range" min="0" max="1" step="0.05" value="1" disabled></div>
+        <div class="field"><label for="vig">Ztlumit okraje</label><output id="vigV"></output><input id="vig" type="range" min="0" max="1" step="0.05" value="0">
+          <span class="hint">Vybledne všechno kromě oválu uprostřed výřezu.</span></div>
+      </div>
+
+      <div class="panel">
+        <h2>Úpravy štětcem</h2>
+        <div class="seg segfull" role="group" aria-label="Štětec">
+          <button type="button" data-brush="off" aria-pressed="true">Vypnutý</button>
+          <button type="button" data-brush="erase" aria-pressed="false">Smazat</button>
+          <button type="button" data-brush="keep" aria-pressed="false">Ponechat</button>
+        </div>
+        <div class="paintwrap"><canvas id="paint" width="10" height="10" aria-label="Plocha pro kreslení štětcem"></canvas></div>
+        <p class="hint">Zapni Smazat a přejeď prstem přes to, co v obrázku nechceš, třeba obrazy na zdi (zčervená). Ponechat (zezelená) chrání místo před ztlumením. Když je štětec vypnutý, plochou jde normálně posouvat.</p>
+        <div class="field"><label for="bsize">Velikost štětce</label><output id="bsizeV"></output><input id="bsize" type="range" min="0.02" max="0.2" step="0.01" value="0.07"></div>
+        <div class="row"><button id="clearMask" type="button" class="grow">Zrušit úpravy štětcem</button></div>
+      </div>
+
+      <div class="panel">
         <h2>Velikost</h2>
         <div class="selects">
           <div><label for="paper">Papír</label>
@@ -172,13 +188,13 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
           <div><label for="orient">Orientace</label>
             <select id="orient"><option value="auto">Podle obrázku</option><option value="p">Na výšku</option><option value="l">Na šířku</option></select></div>
         </div>
-        <div class="field"><label for="cell">Velikost políčka</label><output id="cellV"></output><input id="cell" type="range" min="0.8" max="6" step="0.1" value="2.2">
-          <span class="hint">Menší políčka znamenají větší bludiště a ostřejší obrázek.</span></div>
+        <div class="field"><label for="cols">Políček na šířku</label><output id="colsV"></output><input id="cols" type="range" min="40" max="400" step="2" value="160">
+          <span class="hint">Víc políček znamená větší bludiště a ostřejší obrázek.</span></div>
         <div class="chips" role="group" aria-label="Předvolby velikosti">
-          <button type="button" data-cell="3.5">Rychlovka</button>
-          <button type="button" data-cell="2.2">Normální</button>
-          <button type="button" data-cell="1.6">Velké</button>
-          <button type="button" data-cell="1.1">Masivní</button>
+          <button type="button" data-cols="80">Rychlovka</button>
+          <button type="button" data-cols="140">Normální</button>
+          <button type="button" data-cols="200">Velké</button>
+          <button type="button" data-cols="280">Masivní</button>
         </div>
         <div class="field"><label for="branch">Slepé uličky</label><output id="branchV"></output><input id="branch" type="range" min="0" max="1" step="0.05" value="0.75">
           <span class="hint">Vlevo krátké a časté odbočky, vpravo dlouhé klikaté chodby.</span></div>
@@ -557,17 +573,17 @@ function sampleLayer(layer,cw,ch,crop,channel){
 const P=()=>({
   contrast:+$('contrast').value, bright:+$('bright').value, sharp:+$('sharp').value, maxcov:+$('maxcov').value,
   invert:$('invert').checked, fill:$('fill').checked, paper:$('paper').value, orient:$('orient').value,
-  cell:+$('cell').value, branch:+$('branch').value, zoom:+$('zoom').value, px:+$('px').value, py:+$('py').value, bg:+$('bg').value, vig:+$('vig').value });
+  cols:+$('cols').value, branch:+$('branch').value, zoom:+$('zoom').value, px:+$('px').value, py:+$('py').value, bg:+$('bg').value, vig:+$('vig').value });
 
 function computeDims(p){
-  const [a,b]=PAPERS[p.paper];const asp=state.src?state.src.width/state.src.height:0.75;
+  const [a,b]=PAPERS[p.paper];
+  const asp=state.src?(state.src.width/state.src.height):1;
   const ors=p.orient==='auto'?['p','l']:[p.orient];let best=null;
   for(const o of ors){
     const pw=(o==='p'?a:b)-2*MARGIN, ph=(o==='p'?b:a)-2*MARGIN;
-    let wMax=Math.floor(pw/p.cell),hMax=Math.floor(ph/p.cell),W=wMax,H=hMax;
-    if(!p.fill){H=Math.round(W/asp);if(H>hMax){H=hMax;W=Math.round(H*asp)}}
-    W-=W%2;H-=H%2;W=Math.max(W,4);H=Math.max(H,4);
-    if(!best||W*H>best.W*best.H)best={W,H,o,paperW:o==='p'?a:b,paperH:o==='p'?b:a};
+    let W=p.cols-p.cols%2, H=p.fill?Math.round(W*ph/pw):Math.round(W/asp);
+    H=Math.max(4,H-H%2);const s=Math.min(pw/W,ph/H);
+    if(!best||s>best.s)best={W,H,s,o,paperW:o==='p'?a:b,paperH:o==='p'?b:a};
   }
   return best;
 }
@@ -614,15 +630,18 @@ function computeTarget(p,cw,ch){
 function updateThumb(){
   const p=P();const dm=computeDims(p);state.dims=dm;
   const cw=dm.W/2,ch=dm.H/2;
-  $('gridinfo').innerHTML=`Mřížka <strong>${dm.W} × ${dm.H}</strong> políček (${fmt(dm.W*dm.H)}), ${dm.o==='p'?'na výšku':'na šířku'}, plocha ${fmt(dm.W*p.cell/10,1)} × ${fmt(dm.H*p.cell/10,1)} cm.`;
-  if(dm.W*dm.H>MAX_CELLS) $('gridinfo').innerHTML+=' <strong>To už je hodně, generování může chvíli trvat.</strong>';
+  $('gridinfo').innerHTML=`Mřížka <strong>${dm.W} × ${dm.H}</strong> políček, políčko <strong>${fmt(dm.s,2)} mm</strong>, ${dm.o==='p'?'na výšku':'na šířku'}, plocha ${fmt(dm.W*dm.s/10,1)} × ${fmt(dm.H*dm.s/10,1)} cm.`;
+  if(dm.s<0.8) $('gridinfo').innerHTML+=' <strong>Políčka pod 0,8 mm se kreslí hodně těžko, zkus větší papír.</strong>';
+  else if(dm.W*dm.H>MAX_CELLS) $('gridinfo').innerHTML+=' <strong>To už je hodně, generování může chvíli trvat.</strong>';
   if(!state.src)return;
   const t=computeTarget(p,cw,ch);state.target=t;
   const th=$('thumb');th.width=cw;th.height=ch;const x=th.getContext('2d');const im=x.createImageData(cw,ch);
-  for(let i=0;i<cw*ch;i++){const v=255-Math.round(t[i]*255);im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}
+  const S=buildTree(t,cw,ch,mulberry32(state.seed>>>0),{}).inS;
+  for(let i=0;i<cw*ch;i++){const v=S[i]?24:255;im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}
   x.putImageData(im,0,0);
-  const avail=Math.max(120,$('editorWrap').clientWidth-14),maxH=Math.min(440,window.innerHeight*0.55);
+  const avail=Math.max(120,$('editorWrap').clientWidth-14),maxH=window.innerWidth<960?window.innerHeight*0.27:Math.min(460,window.innerHeight*0.45);
   const k=Math.min(avail/cw,maxH/ch);th.style.width=Math.round(cw*k)+'px';th.style.height=Math.round(ch*k)+'px';
+  renderPaint();
 }
 
 function markStale(){ if(state.maze&&!state.stale){state.stale=true;setStatus('Nastavení se změnilo. Klikni na „Vytvořit bludiště“ pro novou verzi.')} }
@@ -639,9 +658,9 @@ function generate(){
       // safety net: if the picture got lost, rebuild without tone compensation
       let want=0;for(const v of state.target)want+=v;want*=4;
       if(want>400&&m.path.length<want*0.3){console.warn('coverage low',m.path.length,want);m=generateMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch,iters:1})}
-      state.maze=m;state.segs=wallSegments(m);state.poly=solutionPolyline(m);state.mm=p.cell;state.paper=p.paper;state.dm=dm;
+      state.maze=m;state.segs=wallSegments(m);state.poly=solutionPolyline(m);state.mm=dm.s;state.paper=p.paper;state.dm=dm;
       state.stale=false;
-      const len=m.path.length*p.cell/1000;
+      const len=m.path.length*dm.s/1000;
       $('mazeinfo').innerHTML=`Varianta ${state.seed%10000}. Správná cesta má <strong>${fmt(m.path.length)}</strong> políček, po vytištění zhruba <strong>${fmt(len,1)} m</strong> čáry.`;
       setStatus(`Hotovo za ${fmt((performance.now()-t0)/1000,1)} s.`);
       ['pdfPuzzle','pdfSolution','pdfBoth'].forEach(id=>$(id).disabled=false);
@@ -741,44 +760,79 @@ function syncOutputs(){
   $('bsizeV').textContent=fmt(+$('bsize').value*100)+' %';
   $('zoomV').textContent=fmt(+$('zoom').value,1)+'×';
   $('pxV').textContent=fmt(+$('px').value*100)+' %';$('pyV').textContent=fmt(+$('py').value*100)+' %';
-  $('cellV').textContent=fmt(+$('cell').value,1)+' mm';
+  $('colsV').textContent=$('cols').value;
   const b=+$('branch').value;$('branchV').textContent=b<0.34?'krátké':b<0.67?'střední':'dlouhé';
-  document.querySelectorAll('[data-cell]').forEach(bt=>bt.setAttribute('aria-pressed',String(Math.abs(+bt.dataset.cell-+$('cell').value)<0.01)));
+  document.querySelectorAll('[data-cols]').forEach(bt=>bt.setAttribute('aria-pressed',String(bt.dataset.cols===$('cols').value)));
 }
 let thumbTimer=0;
 function onSetting(){syncOutputs();clearTimeout(thumbTimer);thumbTimer=setTimeout(updateThumb,60);markStale()}
-['contrast','bright','sharp','maxcov','cell','branch','zoom','px','py','bg','vig','bsize'].forEach(id=>$(id).addEventListener('input',onSetting));
+['contrast','bright','sharp','maxcov','cols','branch','zoom','px','py','bg','vig','bsize'].forEach(id=>$(id).addEventListener('input',onSetting));
 ['invert','fill','paper','orient'].forEach(id=>$(id).addEventListener('change',onSetting));
-document.querySelectorAll('[data-cell]').forEach(bt=>bt.addEventListener('click',()=>{$('cell').value=bt.dataset.cell;onSetting()}));
+document.querySelectorAll('[data-cols]').forEach(bt=>bt.addEventListener('click',()=>{$('cols').value=bt.dataset.cols;onSetting()}));
 
 $('file').addEventListener('change',e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
   const url=URL.createObjectURL(f);const img=new Image();
-  img.onload=()=>{setSourceFromImage(img,f.name);resetCrop();URL.revokeObjectURL(url);$('thumbinfo').textContent='Takhle zhruba bude vypadat „'+f.name+'“ po vyřešení. Upravuj posuvníky, pak vytvoř bludiště.';updateThumb();generate()};
+  img.onload=()=>{setSourceFromImage(img,f.name);resetCrop();URL.revokeObjectURL(url);updateThumb();generate()};
   img.onerror=()=>{setStatus('Tenhle soubor se nedá otevřít jako obrázek. Zkus JPG nebo PNG.',true)};
   img.src=url;e.target.value='';
 });
-$('rand').addEventListener('click',()=>{randomEmoji();resetCrop();$('thumbinfo').textContent='Náhodný obrázek. Další dostaneš dalším kliknutím.';state.seed=(Math.random()*1e9)>>>0;updateThumb();generate()});
+$('rand').addEventListener('click',()=>{randomEmoji();resetCrop();state.seed=(Math.random()*1e9)>>>0;updateThumb();generate()});
 $('gen').addEventListener('click',generate);
 
-// ---------- brush on the preview
+// ---------- brush field
 document.querySelectorAll('[data-brush]').forEach(bt=>bt.addEventListener('click',()=>{
   state.brush=bt.dataset.brush;document.querySelectorAll('[data-brush]').forEach(b=>b.setAttribute('aria-pressed',String(b===bt)));
-  $('thumb').classList.toggle('painting',state.brush!=='off')}));
-let painting=false,lastPt=null,rafPending=false;
-function toSrc(e){const r=$('thumb').getBoundingClientRect(),c=state.crop;
+  $('paint').classList.toggle('painting',state.brush!=='off')}));
+const tint=document.createElement('canvas');
+function renderPaint(){
+  const cv=$('paint');if(!state.src||!state.crop)return;const c=state.crop;
+  const wrapW=Math.max(120,cv.parentElement.clientWidth-14),maxH=window.innerHeight*0.6;
+  const k=Math.min(wrapW/c.sw,maxH/c.sh);const cssW=Math.round(c.sw*k),cssH=Math.round(c.sh*k);const dpr=Math.min(2,window.devicePixelRatio||1);
+  if(cv.width!==Math.round(cssW*dpr)||cv.height!==Math.round(cssH*dpr)){cv.width=Math.round(cssW*dpr);cv.height=Math.round(cssH*dpr)}
+  cv.style.width=cssW+'px';cv.style.height=cssH+'px';
+  const x=cv.getContext('2d');x.globalCompositeOperation='source-over';x.drawImage(state.src,c.sx,c.sy,c.sw,c.sh,0,0,cv.width,cv.height);
+  tint.width=cv.width;tint.height=cv.height;const tx=tint.getContext('2d');
+  for(const [layer,col] of [[state.erase,'rgba(225,35,60,0.6)'],[state.keep,'rgba(20,170,90,0.55)']]){
+    tx.globalCompositeOperation='source-over';tx.clearRect(0,0,tint.width,tint.height);
+    tx.drawImage(layer,c.sx,c.sy,c.sw,c.sh,0,0,tint.width,tint.height);
+    tx.globalCompositeOperation='source-in';tx.fillStyle=col;tx.fillRect(0,0,tint.width,tint.height);
+    x.drawImage(tint,0,0);}
+}
+let painting=false,lastPt=null,rafPending=false,brushTimer=0;
+function toSrc(e){const r=$('paint').getBoundingClientRect(),c=state.crop;
   return [c.sx+(e.clientX-r.left)/r.width*c.sw, c.sy+(e.clientY-r.top)/r.height*c.sh]}
 function stroke(a,b){const rad=+$('bsize').value*state.crop.sw/2;
   const paint=state.brush==='erase'?state.erase:state.keep, wipe=state.brush==='erase'?state.keep:state.erase;
   for(const [cv,mode] of [[paint,'source-over'],[wipe,'destination-out']]){const x=cv.getContext('2d');
     x.globalCompositeOperation=mode;x.strokeStyle='#000';x.fillStyle='#000';x.lineWidth=rad*2;x.lineCap='round';
     x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke();x.beginPath();x.arc(b[0],b[1],rad,0,Math.PI*2);x.fill();x.globalCompositeOperation='source-over'}
-  if(!rafPending){rafPending=true;requestAnimationFrame(()=>{rafPending=false;updateThumb()})}
+  if(!rafPending){rafPending=true;requestAnimationFrame(()=>{rafPending=false;renderPaint()})}
+  clearTimeout(brushTimer);brushTimer=setTimeout(updateThumb,180);
   markStale();}
-$('thumb').addEventListener('pointerdown',e=>{if(state.brush==='off'||!state.crop)return;e.preventDefault();painting=true;$('thumb').setPointerCapture(e.pointerId);lastPt=toSrc(e);stroke(lastPt,lastPt)});
-$('thumb').addEventListener('pointermove',e=>{if(!painting)return;e.preventDefault();const p=toSrc(e);stroke(lastPt,p);lastPt=p});
-['pointerup','pointercancel'].forEach(n=>$('thumb').addEventListener(n,()=>{painting=false}));
+$('paint').addEventListener('pointerdown',e=>{if(state.brush==='off'||!state.crop)return;e.preventDefault();painting=true;$('paint').setPointerCapture(e.pointerId);lastPt=toSrc(e);stroke(lastPt,lastPt)});
+$('paint').addEventListener('pointermove',e=>{if(!painting)return;e.preventDefault();const p=toSrc(e);stroke(lastPt,p);lastPt=p});
+['pointerup','pointercancel'].forEach(n=>$('paint').addEventListener(n,()=>{painting=false}));
 $('clearMask').addEventListener('click',()=>{if(!state.src)return;for(const c of [state.erase,state.keep])c.getContext('2d').clearRect(0,0,c.width,c.height);updateThumb();markStale()});
+window.addEventListener('resize',()=>{clearTimeout(thumbTimer);thumbTimer=setTimeout(updateThumb,150)});
+
+// ---------- sliders: change only on a deliberate sideways drag, so scrolling never moves them
+document.querySelectorAll('.field').forEach(f=>{
+  const inp=f.querySelector('input[type=range]');if(!inp)return;let st=null;
+  const setVal=v=>{const mn=+inp.min,mx=+inp.max,stp=+inp.step||1;v=Math.min(mx,Math.max(mn,Math.round((v-mn)/stp)*stp+mn));
+    const str=String(+v.toFixed(6));if(str!==inp.value){inp.value=str;inp.dispatchEvent(new Event('input',{bubbles:true}))}};
+  const fromX=e=>{const r=inp.getBoundingClientRect(),pad=12;const q=(e.clientX-r.left-pad)/(r.width-2*pad);return +inp.min+Math.min(1,Math.max(0,q))*(inp.max-inp.min)};
+  f.addEventListener('pointerdown',e=>{if(inp.disabled)return;const r=inp.getBoundingClientRect();
+    if(e.clientY<r.top-16||e.clientY>r.bottom+16)return;
+    st={x:e.clientX,y:e.clientY,id:e.pointerId,v0:+inp.value,drag:false,mouse:e.pointerType==='mouse'};
+    if(st.mouse){st.drag=true;f.setPointerCapture(e.pointerId);setVal(fromX(e))}});
+  f.addEventListener('pointermove',e=>{if(!st||e.pointerId!==st.id)return;const dx=e.clientX-st.x,dy=e.clientY-st.y;
+    if(!st.drag){if(Math.abs(dy)>8&&Math.abs(dy)>Math.abs(dx)){st=null;return}if(Math.abs(dx)<10)return;st.drag=true;f.setPointerCapture(e.pointerId);f.classList.add('dragging')}
+    e.preventDefault();
+    if(st.mouse)setVal(fromX(e));else{const r=inp.getBoundingClientRect();setVal(st.v0+(dx/(r.width-24))*(inp.max-inp.min))}});
+  const end=()=>{if(st&&st.drag)inp.dispatchEvent(new Event('change',{bubbles:true}));st=null;f.classList.remove('dragging')};
+  f.addEventListener('pointerup',end);f.addEventListener('pointercancel',()=>{st=null;f.classList.remove('dragging')});
+});
 
 // ---------- automatic person detection (MediaPipe selfie segmentation)
 const MP_BASE=window.MP_BASE||'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/';
