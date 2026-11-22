@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pages: write
     steps:
       - uses: actions/checkout@v4
       - name: Rozbalit nahraný zip
@@ -32,33 +33,10 @@ jobs:
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Rozbaleno ze zipu" && git push || echo "Beze změn"
-
-  web:
-    needs: unpack
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
-      - name: Připravit web
-        run: |
-          mkdir _site
-          for f in index.html jspdf.umd.min.js manifest.webmanifest sw.js icon-192.png icon-512.png mediapipe; do
-            [ -e "$f" ] && cp -r "$f" _site/
-          done
-          ls _site
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deploy
-        uses: actions/deploy-pages@v4
+      - name: Aktualizovat web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo "Web se aktualizuje sám."
 
   apk:
     needs: unpack
