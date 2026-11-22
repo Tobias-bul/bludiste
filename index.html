@@ -273,6 +273,7 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
           <button id="pdfPuzzle" type="button" disabled>PDF se zadáním</button>
           <button id="pdfSolution" type="button" disabled>PDF s řešením</button>
           <button id="pdfBoth" type="button" disabled>Obojí v jednom PDF</button>
+          <button id="pdfShare" type="button" hidden disabled>Sdílet / vytisknout PDF</button>
         </div>
         <div class="tips">
           <details>
@@ -731,8 +732,12 @@ async function saveBlob(name,blob){
     return;
   }
   if(inClaude){ setStatus('Stahování tady není k dispozici. Otevři stránku v prohlížeči nebo ji nahraj na vlastní web.',true); return; }
-  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),4000); setStatus('PDF staženo.');
+  // plain browser download; works offline too (Firefox gets a data: link, its downloader can't fetch blob: links reliably)
+  let url;const firefox=/firefox|fxios/i.test(navigator.userAgent);
+  if(firefox)url=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob)});
+  else url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=name;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+  if(!firefox)setTimeout(()=>URL.revokeObjectURL(url),60000); setStatus('PDF staženo. Když se stahování nespustilo, použij Sdílet / vytisknout PDF.');
 }
 
 function setStatus(msg,warn){const s=$('status');s.textContent=msg||'';s.classList.toggle('warn',!!warn)}
@@ -868,7 +873,7 @@ function generate(){
       const len=m.path.length*dm.s/1000;
       $('mazeinfo').innerHTML=`Varianta ${state.seed%10000}. Správná cesta má <strong>${fmt(m.path.length)}</strong> políček, po vytištění zhruba <strong>${fmt(len,1)} m</strong> čáry.`;
       setStatus(`Hotovo za ${fmt((performance.now()-t0)/1000,1)} s.`);
-      ['pdfPuzzle','pdfSolution','pdfBoth'].forEach(id=>$(id).disabled=false);
+      ['pdfPuzzle','pdfSolution','pdfBoth'].forEach(id=>$(id).disabled=false);state.lastPdf=null;updateShareBtn();
       render();
     }catch(e){console.error(e);setStatus('Generování selhalo: '+e.message,true)}
     $('busy').classList.remove('on');$('gen').disabled=false;
@@ -947,11 +952,21 @@ function makePDF(kinds){
   kinds.forEach((k,i)=>{if(i)doc.addPage(fmtName,dm.o==='p'?'portrait':'landscape');pdfPage(doc,k)});
   return doc.output('blob');
 }
+// share sheet (save to files, Drive, print apps…) – needs no internet
+function canShareFiles(){try{return !!(navigator.canShare&&navigator.canShare({files:[new File([new Blob(['x'])],'t.pdf',{type:'application/pdf'})]}))}catch(e){return false}}
+function updateShareBtn(){const b=$('pdfShare');if(!b)return;b.hidden=!(canShareFiles()&&!inClaude);b.disabled=!state.maze}
+async function sharePdf(){
+  if(!state.maze)return;let pdf=state.lastPdf;
+  if(!pdf){try{pdf={name:`bludiste-${state.seed%10000}-zadani-a-reseni.pdf`,blob:makePDF(['puzzle','solution'])};state.lastPdf=pdf}catch(e){setStatus('PDF se nepodařilo vytvořit: '+e.message,true);return}}
+  const file=new File([pdf.blob],pdf.name,{type:'application/pdf'});
+  try{await navigator.share({files:[file],title:pdf.name});setStatus('PDF předáno.')}
+  catch(e){if(e&&e.name==='AbortError')setStatus('Sdílení zrušeno.');else setStatus('Sdílení se nepovedlo: '+((e&&e.message)||e),true)}
+}
 function exportPDF(kinds,suffix){
   if(!state.maze)return;
   if(!window.jspdf){setStatus('Knihovna pro PDF se nenačetla. Zkontroluj připojení a obnov stránku.',true);return}
   setStatus('Připravuji PDF…');
-  setTimeout(()=>{try{const blob=makePDF(kinds);saveBlob(`bludiste-${state.seed%10000}-${suffix}.pdf`,blob)}catch(e){console.error(e);setStatus('PDF se nepodařilo vytvořit: '+e.message,true)}},30);
+  setTimeout(()=>{try{const blob=makePDF(kinds);const name=`bludiste-${state.seed%10000}-${suffix}.pdf`;state.lastPdf={name,blob};updateShareBtn();saveBlob(name,blob)}catch(e){console.error(e);setStatus('PDF se nepodařilo vytvořit: '+e.message,true)}},30);
 }
 
 function resetCrop(){state.cropRect={x:0,y:0,w:1,h:1};fitCropToShape()}
@@ -1200,6 +1215,7 @@ document.querySelectorAll('[data-zoom]').forEach(bt=>bt.addEventListener('click'
 $('pdfPuzzle').addEventListener('click',()=>exportPDF(['puzzle'],'zadani'));
 $('pdfSolution').addEventListener('click',()=>exportPDF(['solution'],'reseni'));
 $('pdfBoth').addEventListener('click',()=>exportPDF(['puzzle','solution'],'zadani-a-reseni'));
+$('pdfShare').addEventListener('click',sharePdf);
 
 setTool('off');
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!inClaude&&!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){
