@@ -150,11 +150,44 @@ details.sub{margin-top:14px; border-top:1.5px solid var(--line); padding-top:10p
 details.sub>summary{cursor:pointer; font-weight:700; min-height:32px; display:flex; align-items:center}
 #cropcv{display:block; max-width:100%; touch-action:none; cursor:crosshair}
 .stage{margin-top:18px}
+.stagebtns button{flex:0 0 auto!important}
 .toolbar{align-items:center}
 .stagegrid{display:grid; gap:14px; grid-template-columns:minmax(0,1fr)}
 @media (min-width:1000px){ .stagegrid{grid-template-columns:minmax(0,1fr) 300px; align-items:start} .stageside .exports{grid-template-columns:1fr} }
 .wrap{max-width:1600px}
 header{margin:4px 0 14px}
+
+/* ---- secret mode: nothing of the picture is shown ---- */
+body.secret #editorWrap canvas, body.secret #cropcv, body.secret #paint{filter:blur(28px) brightness(1.6); opacity:.15}
+body.secret #editorWrap, body.secret .paintwrap{position:relative}
+body.secret #editorWrap::after, body.secret .paintwrap::after{content:"🎁 Schováno, ať si nezkazíš překvapení"; position:absolute; inset:0; display:grid; place-items:center; text-align:center; font-weight:700; color:#18254F; padding:10px}
+body.secret [data-view="solution"], body.secret [data-view="reveal"]{opacity:.45}
+/* ---- fitted maze in step 5 ---- */
+.viewport{display:flex; justify-content:center; max-height:none; overflow:visible}
+.viewport.zoomed{display:block; max-height:86vh; overflow:auto}
+#cv{width:auto; max-width:none}
+/* ---- compact desktop so steps fit without scrolling ---- */
+@media (min-width:1200px){
+  header{display:flex; align-items:baseline; gap:16px; margin:0 0 10px}
+  header h1{font-size:28px; white-space:nowrap}
+  header p{margin:0; font-size:14px}
+  .wrap{padding-top:10px}
+  .workspace .step{padding:12px 14px; max-height:calc(100vh - 80px)}
+  .workspace .step h2{font-size:18px; margin-bottom:8px}
+  .workspace .field{margin:6px 0}
+  .workspace .field label,.workspace .field output{font-size:14px}
+  .workspace .field input[type=range]{height:24px}
+  .workspace .chips{margin-top:2px}
+  .workspace .chips button{min-height:30px; padding:4px 8px; font-size:13px}
+  .workspace select{min-height:38px; padding:6px 8px}
+  .workspace button,.workspace .btn{min-height:38px; padding:6px 10px}
+  .workspace .hint{font-size:12px}
+  .workspace .stats{font-size:13px; margin:6px 0 0}
+  .workspace .check{margin-top:4px; font-size:14px}
+  .workspace .paintwrap{margin:8px 0 4px}
+  details.sub{margin-top:8px; padding-top:6px}
+  .pv{padding:6px 0}
+}
 @media (prefers-reduced-motion: reduce){*{transition:none!important; animation:none!important}}
 </style>
 </head>
@@ -180,6 +213,9 @@ header{margin:4px 0 14px}
         <button id="drawBtn" class="grow" type="button">Nakreslit</button>
         <button id="rand" class="grow" type="button">Náhodný</button>
       </div>
+      <div class="row" style="margin-top:8px"><button id="surpriseBtn" class="grow" type="button">🎁 Překvapení pro mě</button></div>
+      <label class="check"><input id="secret" type="checkbox"> Nechci vidět, co vznikne</label>
+      <p class="hint">Překvapení vybere náhodný originální obrázek (mandalu, optický obrazec nebo zvířátko s vtipným nápisem) a schová ho. Uvidíš ho až po vyluštění.</p>
       <div id="drawPanel" hidden>
         <div class="seg segfull" role="group" aria-label="Nástroj kreslení" style="margin-top:12px">
           <button type="button" data-dtool="off" aria-pressed="false">Posouvat</button>
@@ -275,6 +311,10 @@ header{margin:4px 0 14px}
     <div class="panel">
       <div class="toolbar">
         <h2 style="margin:0;align-self:center"><span class="num">5</span>Hotové bludiště</h2>
+        <div class="row stagebtns" style="flex:1 1 auto;justify-content:flex-start">
+          <button id="reseed2" type="button">🎲 Jiná varianta</button>
+          <button id="regen" type="button">Vytvořit znovu</button>
+        </div>
         <div class="seg" role="group" aria-label="Zobrazení">
           <button type="button" data-view="puzzle" aria-pressed="true">Zadání</button>
           <button type="button" data-view="solution" aria-pressed="false">Řešení</button>
@@ -877,7 +917,7 @@ function updateThumb(){
   const tg=$('thumbGray');tg.width=cw;tg.height=ch;const gx=tg.getContext('2d');const gi=gx.createImageData(cw,ch);
   for(let i=0;i<cw*ch;i++){const v=255-Math.round(Math.min(1,t[i]/Math.max(0.01,p.maxcov))*255);gi.data[i*4]=gi.data[i*4+1]=gi.data[i*4+2]=v;gi.data[i*4+3]=255}
   gx.putImageData(gi,0,0);
-  const avail=Math.max(100,($('editorWrap').clientWidth-22)/2),maxH=window.innerWidth<960?window.innerHeight*0.24:Math.min(360,window.innerHeight*0.4);
+  const avail=Math.max(100,($('editorWrap').clientWidth-22)/2),maxH=window.innerWidth<960?window.innerHeight*0.24:Math.min(300,window.innerHeight*0.3);
   const k=Math.min(avail/cw,maxH/ch);
   for(const c of [th,tg]){c.style.width=Math.round(cw*k)+'px';c.style.height=Math.round(ch*k)+'px'}
   renderPaint();
@@ -923,16 +963,21 @@ function arrowPts(side,cx,cy,size,inward){
   const px=-d[1],py=d[0];
   return [tip,[bx+px*size*0.5,by+py*size*0.5],[bx-px*size*0.5,by-py*size*0.5]];
 }
+function sizeStage(){render()}
+let stTimer=0;window.addEventListener('resize',()=>{if(state.maze){clearTimeout(stTimer);stTimer=setTimeout(render,200)}});
 function render(){
   const m=state.maze;if(!m)return;const cv=$('cv');
-  const pad=3;const sc=Math.max(2,Math.min(14,Math.floor(2600/Math.max(m.W,m.H))));
-  cv.width=(m.W+pad*2)*sc;cv.height=(m.H+pad*2)*sc;
-  cv.style.width=(state.zoom*100)+'%';
+  const pad=3;const dpr=Math.min(3,window.devicePixelRatio||1);const vp=$('vp');
+  // draw at the exact on-screen size (whole pixels per cell) so fine walls don't create moiré patterns
+  const aw=Math.max(200,vp.clientWidth-4),ah=window.innerHeight*0.86;const cols=m.W+pad*2,rows=m.H+pad*2;
+  const fitCss=Math.min(aw,ah*cols/rows),wantCss=state.zoom>1?aw*state.zoom:fitCss;
+  const sc=Math.max(1,Math.min(16,Math.floor(wantCss*dpr/cols)));
+  cv.width=cols*sc;cv.height=rows*sc;cv.style.width=(cv.width/dpr)+'px';vp.classList.toggle('zoomed',state.zoom>1);
   const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);
   x.save();x.translate(pad*sc,pad*sc);x.lineCap='square';
   const ink='#18254F';
   if(state.view!=='reveal'){
-    x.strokeStyle=state.view==='solution'?'#B9C2D6':ink;x.lineWidth=Math.max(1,sc*0.14);
+    x.strokeStyle=state.view==='solution'?'#B9C2D6':ink;x.lineWidth=Math.max(1,Math.round(sc*0.14));
     x.beginPath();const s=state.segs;for(let i=0;i<s.length;i+=4){x.moveTo(s[i]*sc,s[i+1]*sc);x.lineTo(s[i+2]*sc,s[i+3]*sc)}x.stroke();
   }
   if(state.view!=='puzzle'){
@@ -1027,11 +1072,11 @@ document.querySelectorAll('[data-cols]').forEach(bt=>bt.addEventListener('click'
 $('file').addEventListener('change',e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
   const url=URL.createObjectURL(f);const img=new Image();
-  img.onload=()=>{setSourceFromImage(img,f.name);resetCrop();URL.revokeObjectURL(url);updateThumb()};
+  img.onload=()=>{setSourceFromImage(img,f.name);setHidden(false);resetCrop();URL.revokeObjectURL(url);updateThumb()};
   img.onerror=()=>{setStatus('Tenhle soubor se nedá otevřít jako obrázek. Zkus JPG nebo PNG.',true)};
   img.src=url;e.target.value='';
 });
-$('rand').addEventListener('click',()=>{randomEmoji();resetCrop();state.seed=(Math.random()*1e9)>>>0;updateThumb()});
+$('rand').addEventListener('click',()=>{randomEmoji();setHidden(false);resetCrop();state.seed=(Math.random()*1e9)>>>0;updateThumb()});
 $('gen').addEventListener('click',generate);
 
 // ---------- crop field (step 2) and brush field (step 3)
@@ -1045,7 +1090,7 @@ const tint=document.createElement('canvas');
 function renderField(cv,cropMode){
   if(!state.src||!state.crop||!cv.offsetParent)return;const src=state.src;
   const r=cropMode?{sx:0,sy:0,sw:src.width,sh:src.height}:state.crop;
-  const wrapW=Math.max(120,cv.parentElement.clientWidth-14),maxH=window.innerHeight*(cropMode?0.45:0.5);
+  const wrapW=Math.max(120,cv.parentElement.clientWidth-14),maxH=window.innerHeight*(window.innerWidth>=1200?(cropMode?0.34:0.32):(cropMode?0.45:0.5));
   const k=Math.min(wrapW/r.sw,maxH/r.sh);const cssW=Math.round(r.sw*k),cssH=Math.round(r.sh*k);const dpr=Math.min(2,window.devicePixelRatio||1);
   const pw=Math.round(cssW*dpr),ph=Math.round(cssH*dpr);if(cv.width!==pw||cv.height!==ph){cv.width=pw;cv.height=ph}
   cv.style.width=cssW+'px';cv.style.height=cssH+'px';cv._view={sx:r.sx,sy:r.sy,sw:r.sw,sh:r.sh};
@@ -1187,6 +1232,49 @@ $('drawBtn').addEventListener('click',()=>{
   panel.scrollIntoView({behavior:'smooth',block:'start'});
 });
 
+// ---------- surprise pictures (original artwork made on the spot, nothing copied)
+const PHRASES=['Máš to!','Ty jsi ale borec','Gratuluju!','Kdo hledá, najde','Šampion bludišť','Nevzdal ses!','Hotovo. Dej si čaj.','Bludiště 0 : Ty 1','Respekt!','Konečně venku!','Tak to bylo dlouhý','Zasloužíš si dort','Mistr fixy','Cíl! Hurá!','Neztratil ses'];
+const FUN_EMOJI=['🐱','🐶','🦊','🐼','🦁','🐸','🐵','🦉','🐢','🐙','🦄','🐧','🐨','🐯','🐷','🐰','🦖','🐳','🦀','🦒','🐌','🦔','🦥','🦦','🦩','🐝','🐞','🌵','🍕','🍔','🍩','🍉','🚀','🛸','🎸','🏆','👑','💎','⚽','🎮','🎲','🏰','⛄','🌈','👻','🤖','👽','🍄','🌻','🐉'];
+const rr=(a,b)=>a+Math.random()*(b-a), pick=a=>a[(Math.random()*a.length)|0];
+function sCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.fillStyle='#000';x.strokeStyle='#000';x.lineCap='round';x.lineJoin='round';return [c,x]}
+function makeMandala(){const S=1000,[c,x]=sCanvas(S,S);x.translate(S/2,S/2);const n=pick([6,7,8,9,10,12]);
+  x.lineWidth=S*0.03;x.beginPath();x.arc(0,0,S*0.47,0,Math.PI*2);x.stroke();
+  const rings=3+((Math.random()*3)|0);
+  for(let r=0;r<rings;r++){const R=S*(0.08+0.36*(r+1)/rings),kind=(Math.random()*4)|0,m=n*(1+(r%2));
+    for(let i=0;i<m;i++){x.save();x.rotate(i*2*Math.PI/m+(r%2)*Math.PI/m);
+      if(kind===0){x.beginPath();x.ellipse(0,-R*0.78,S*0.035,R*0.22,0,0,Math.PI*2);x.fill()}
+      else if(kind===1){x.beginPath();x.arc(0,-R,S*rr(0.018,0.035),0,Math.PI*2);x.fill()}
+      else if(kind===2){x.lineWidth=S*0.018;x.beginPath();x.moveTo(0,-R*0.6);x.quadraticCurveTo(R*0.35,-R*0.85,0,-R);x.quadraticCurveTo(-R*0.35,-R*0.85,0,-R*0.6);x.stroke()}
+      else{x.beginPath();x.moveTo(0,-R*0.62);x.lineTo(S*0.04,-R*0.82);x.lineTo(0,-R);x.lineTo(-S*0.04,-R*0.82);x.closePath();x.fill()}
+      x.restore()}}
+  x.beginPath();x.arc(0,0,S*0.06,0,Math.PI*2);x.fill();return c}
+function makeOpArt(){const S=1000,[c,x]=sCanvas(S,S);const kind=(Math.random()*3)|0;x.translate(S/2,S/2);
+  if(kind===0){const arms=pick([2,3,4]);x.lineWidth=S*0.045;for(let a=0;a<arms;a++){x.beginPath();for(let t=0;t<14;t+=0.02){const r=S*0.03*t*1.15;const ang=t+a*2*Math.PI/arms;const px=Math.cos(ang)*r,py=Math.sin(ang)*r;if(r>S*0.47)break;t?x.lineTo(px,py):x.moveTo(px,py)}x.stroke()}}
+  else if(kind===1){const n=pick([12,16,20]);for(let i=0;i<n;i+=2){x.beginPath();x.moveTo(0,0);x.arc(0,0,S*0.47,i*2*Math.PI/n,(i+1)*2*Math.PI/n);x.closePath();x.fill()}
+    x.fillStyle='#fff';x.beginPath();x.arc(0,0,S*0.2,0,Math.PI*2);x.fill();x.fillStyle='#000';x.beginPath();x.arc(0,0,S*0.08,0,Math.PI*2);x.fill()}
+  else{for(let r=S*0.47,k=0;r>S*0.03;r-=S*0.045,k++){x.fillStyle=k%2?'#fff':'#000';x.beginPath();x.arc(Math.sin(k*0.6)*S*0.04,0,r,0,Math.PI*2);x.fill()}}
+  return c}
+function makeCaption(){const W=1200,H=1200,[c,x]=sCanvas(W,H);const em=pick(FUN_EMOJI),txt=pick(PHRASES);
+  x.textAlign='center';x.textBaseline='middle';x.font='560px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';x.fillText(em,W/2,H*0.36);
+  const words=txt.split(' ');const lines=[];let cur='';x.font='800 100px "Bricolage Grotesque",system-ui,sans-serif';
+  for(const w of words){const t=cur?cur+' '+w:w;if(x.measureText(t).width>W*0.9/1.6&&cur){lines.push(cur);cur=w}else cur=t}lines.push(cur);
+  const maxW=Math.max(...lines.map(l=>x.measureText(l).width));const size=Math.min(100*W*0.92/maxW,H*0.3/lines.length/1.1);
+  x.font=`800 ${Math.floor(size)}px "Bricolage Grotesque",system-ui,sans-serif`;x.fillStyle='#000';
+  lines.forEach((l,i)=>x.fillText(l,W/2,H*0.8+(i-(lines.length-1)/2)*size*1.1));return c}
+function makeEmojiBig(){const S=1000,[c,x]=sCanvas(S,S);x.textAlign='center';x.textBaseline='middle';
+  x.font='800px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';x.fillText(pick(FUN_EMOJI),S/2,S*0.54);return c}
+function surprise(){
+  const gen=pick([makeMandala,makeMandala,makeOpArt,makeCaption,makeCaption,makeEmojiBig]);const c=gen();
+  state.src=c;state.srcName='překvapení';state.isDrawing=false;newLayers();fitCropToShape();$('drawPanel').hidden=true;
+  setHidden(true);state.seed=(Math.random()*1e9)>>>0;
+  $('contrast').value=1.25;$('bright').value=0.06;$('invert').checked=false;syncOutputs();updateThumb();
+  setStatus('Překvapení je připravené a schované. Klikni na Vytvořit bludiště.');
+}
+function setHidden(on){state.secret=on;document.body.classList.toggle('secret',on);$('secret').checked=on;
+  if(on&&state.view!=='puzzle'){state.view='puzzle';document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view==='puzzle')));render()}}
+$('surpriseBtn').addEventListener('click',surprise);
+$('secret').addEventListener('change',e=>setHidden(e.target.checked));
+
 // ---------- sliders: change only on a deliberate sideways drag, so scrolling never moves them
 document.querySelectorAll('.field').forEach(f=>{
   const inp=f.querySelector('input[type=range]');if(!inp)return;let st=null;
@@ -1234,11 +1322,14 @@ $('detect').addEventListener('click',async()=>{
   $('detect').disabled=false;
 });
 $('reseed').addEventListener('click',()=>{state.seed=(Math.random()*1e9)>>>0;generate()});
+$('reseed2').addEventListener('click',()=>{state.seed=(Math.random()*1e9)>>>0;generate()});
+$('regen').addEventListener('click',generate);
 document.querySelectorAll('[data-view]').forEach(bt=>bt.addEventListener('click',()=>{
+  if(state.secret&&bt.dataset.view!=='puzzle'){if(!confirm('Tím uvidíš obrázek a přijdeš o překvapení. Ukázat?'))return;setHidden(false)}
   state.view=bt.dataset.view;document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===bt)));render()}));
 document.querySelectorAll('[data-zoom]').forEach(bt=>bt.addEventListener('click',()=>{
   state.zoom=+bt.dataset.zoom;document.querySelectorAll('[data-zoom]').forEach(b=>b.setAttribute('aria-pressed',String(b===bt)));
-  $('cv').style.width=(state.zoom*100)+'%'}));
+  sizeStage()}));
 $('pdfPuzzle').addEventListener('click',()=>exportPDF(['puzzle'],'zadani'));
 $('pdfSolution').addEventListener('click',()=>exportPDF(['solution'],'reseni'));
 $('pdfBoth').addEventListener('click',()=>exportPDF(['puzzle','solution'],'zadani-a-reseni'));

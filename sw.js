@@ -1,6 +1,6 @@
 // Offline: the app works without internet once it has been opened.
 // App files are served from the cache first and refreshed in the background.
-const CACHE='bludiste-v14';
+const CACHE='bludiste-v15';
 const CORE=['./','index.html','jspdf.umd.min.js','manifest.webmanifest','icon-192.png','icon-512.png'];
 const MP=['selfie_segmentation.js','selfie_segmentation.binarypb','selfie_segmentation.tflite','selfie_segmentation_solution_simd_wasm_bin.js','selfie_segmentation_solution_simd_wasm_bin.wasm','selfie_segmentation_solution_simd_wasm_bin.data'].map(f=>'mediapipe/'+f);
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(async c=>{await c.addAll(CORE);try{await c.addAll(MP)}catch(err){}}));self.skipWaiting()});
