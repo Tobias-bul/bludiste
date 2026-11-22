@@ -236,8 +236,8 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
         <div class="field"><label for="branch">Slepé uličky</label><output id="branchV"></output><input id="branch" type="range" min="0" max="1" step="0.05" value="0.75">
           <span class="hint">Vlevo krátké a časté odbočky, vpravo dlouhé klikaté chodby.</span></div>
         <div class="selects one"><div><label for="ends">Start a cíl</label>
-          <select id="ends"><option value="opposite">Na opačných stranách obrázku</option><option value="short">Co nejkratší čáry k okraji</option></select></div></div>
-        <p class="hint">Na opačných stranách: cesta vede podél jednoho okraje obrázku, který tak po vyřešení dostane tenký rámeček.</p>
+          <select id="ends"><option value="far">Daleko od sebe, bez čar navíc</option><option value="short">Na okraji papíru (krátké čáry k okraji)</option></select></div></div>
+        <p class="hint">Daleko od sebe: start a cíl leží přímo v obrázku co nejdál od sebe (nebo na okraji papíru, když tam obrázek sahá). Plný kroužek je start, prázdný cíl. Oddělené části obrázku spojí jen krátká čára, bez ní by cesta nešla projít.</p>
         <label class="check"><input id="camo" type="checkbox" checked> Skrýt obrázek v zadání</label>
         <p class="hint">Slepé uličky se kreslí stejným stylem jako správná cesta, takže podle bludiště není poznat, co v něm je.</p>
         <p class="stats" id="gridinfo"></p>
@@ -397,6 +397,65 @@ function generateMaze(t, cw, ch, opts){
   const tau=0.04;
   const tree=buildTree(t,cw,ch,rnd,opts);
   const {treeR,treeD,inS}=tree;
+  // --- phase 3.5 (default): route between two far-apart blocks A and B along the tree.
+  // Inside each route block the path goes around three of the block's four faces, detouring
+  // through side branches. Where a branch sits on a face that has to be skipped, the branch is
+  // re-hung onto another part of the picture (or, if that is impossible, dropped).
+  let farPlan=null;
+  if(!opts.spine&&opts.ends!=='short'){
+    const N2=cw*ch,off=[-cw,1,cw,-1];
+    const hasE=(a,b)=>b===a+1?treeR[a]:a===b+1?treeR[b]:b===a+cw?treeD[a]:treeD[b];
+    const setE=(a,b,v)=>{if(b===a+1)treeR[a]=v;else if(a===b+1)treeR[b]=v;else if(b===a+cw)treeD[a]=v;else treeD[b]=v};
+    const nbs=c=>{const x=c%cw,y=(c/cw)|0,r=[];if(y>0)r.push(c-cw);if(x<cw-1)r.push(c+1);if(y<ch-1)r.push(c+cw);if(x>0)r.push(c-1);return r};
+    const treeNb=c=>nbs(c).filter(n=>inS[n]&&hasE(c,n));
+    const bfsT=src=>{const d=new Int32Array(N2).fill(-1),par=new Int32Array(N2).fill(-1);const q=[src];d[src]=0;for(let h=0;h<q.length;h++){const c=q[h];for(const n of treeNb(c))if(d[n]<0){d[n]=d[c]+1;par[n]=c;q.push(n)}}return {d,par}};
+    const dirOf=(a,b)=>b===a-cw?0:b===a+1?1:b===a+cw?2:3;
+    const onSide={top:[],bottom:[],left:[],right:[]};
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!inS[c])continue;
+      if(y===0)onSide.top.push(c);if(y===ch-1)onSide.bottom.push(c);if(x===0)onSide.left.push(c);if(x===cw-1)onSide.right.push(c)}
+    const md=(a,b)=>Math.abs(a%cw-b%cw)+Math.abs(((a/cw)|0)-((b/cw)|0));
+    let A=-1,B=-1,sideA=null,sideB=null;
+    const order=cw>=ch?[['left','right'],['top','bottom']]:[['top','bottom'],['left','right']];
+    for(const [s1,s2] of order){if(A>=0)break;if(!onSide[s1].length||!onSide[s2].length)continue;
+      let best=-1;for(let k=0;k<16;k++){const a=onSide[s1][(rnd()*onSide[s1].length)|0];for(const b of onSide[s2]){const d=md(a,b);if(d>best){best=d;A=a;B=b}}}
+      sideA=s1;sideB=s2;}
+    if(A<0){let a0=-1;for(let i=0;i<N2;i++)if(inS[i]){a0=i;break}
+      const any=['top','left','bottom','right'].find(s=>onSide[s].length);
+      if(any){A=onSide[any][(onSide[any].length/2)|0];sideA=any}else{const r0=bfsT(a0).d;A=a0;for(let i=0;i<N2;i++)if(r0[i]>r0[A])A=i}
+      const rA=bfsT(A).d;B=A;for(let i=0;i<N2;i++)if(rA[i]>rA[B])B=i;}
+    const corners=s=>s==='top'?[0,1]:s==='right'?[1,2]:s==='bottom'?[2,3]:s==='left'?[3,0]:[0,1,2,3];
+    const mirror={0:{0:3,1:2},1:{1:0,2:3},2:{2:1,3:0},3:{3:2,0:1}};
+    const subtree=(root,cut)=>{const out=[root],seen=new Set([root,cut]);for(let h=0;h<out.length;h++)for(const n of treeNb(out[h]))if(!seen.has(n)){seen.add(n);out.push(n)}return out};
+    let route=null;
+    for(let guard=0;guard<6000;guard++){
+      const {par}=bfsT(A);route=[];for(let c=B;c>=0;c=par[c]){route.push(c);if(c===A)break}route.reverse();
+      if(route[0]!==A){route=null;break}
+      const R=route.length,onRoute=new Set(route);
+      const bfs=route.map(c=>{const f=[0,0,0,0];treeNb(c).forEach(n=>{if(!onRoute.has(n))f[dirOf(c,n)]=1});return f});
+      // DP: state = entry corner; option = go clockwise (1) or counter-clockwise (3)
+      let entries=new Map();for(const k of corners(sideA))entries.set(k,1);
+      const steps=[];let failAt=-1;
+      for(let i=0;i<R;i++){const ex=i<R-1?dirOf(route[i],route[i+1]):-1,bf=bfs[i],next=new Map(),os=[];
+        for(const [e] of entries)for(const dir of [1,3]){const omitted=dir===1?(e+3)%4:e;if(bf[omitted])continue;const last=(e+3*dir)%4;
+          if(i<R-1){if(last!==ex&&last!==(ex+1)%4)continue;const m=mirror[ex][last];os.push({e,dir,last,m});next.set(m,1)}
+          else os.push({e,dir,last,good:corners(sideB).includes(last)?0:1})}
+        steps.push(os);
+        if(i<R-1){if(!next.size){failAt=i;break}entries=next}else if(!os.length)failAt=i}
+      if(failAt<0){
+        const choice=new Array(R);const last=steps[R-1].slice().sort((a,b)=>a.good-b.good);choice[R-1]=last[0];
+        for(let i=R-2;i>=0;i--){const need=choice[i+1].e;choice[i]=steps[i].find(o=>o.m===need)}
+        farPlan={route,choice,bfs,sideA,sideB,corners};break;}
+      // fix a branch on the failing block
+      const c=route[failAt],bf=bfs[failAt];
+      const subs=[0,1,2,3].filter(d=>bf[d]).map(d=>({n:c+off[d],cells:subtree(c+off[d],c)})).sort((a,b)=>a.cells.length-b.cells.length);
+      if(!subs.length){route=null;break}
+      let fixed=false;
+      for(const sub of subs){const inX=new Set(sub.cells);const opt=[];
+        for(const p of sub.cells)for(const q of nbs(p))if(inS[q]&&!inX.has(q)&&!onRoute.has(q))opt.push([p,q]);
+        if(opt.length){const [p,q]=opt[(rnd()*opt.length)|0];setE(c,sub.n,0);setE(p,q,1);fixed=true;break}}
+      if(!fixed){const sub=subs[0];setE(c,sub.n,0);for(const p of sub.cells){for(const q of nbs(p))if(inS[q]&&hasE(p,q))setE(p,q,0);inS[p]=0}}
+    }
+  }
   // --- phase 4: Hamiltonian cycle on fine grid around the tree
   const W=cw*2,H=ch*2,M=W*H;
   const nA=new Int32Array(M).fill(-1), nB=new Int32Array(M).fill(-1);
@@ -413,6 +472,19 @@ function generateMaze(t, cw, ch, opts){
   const cyc=[];{let prev=-1,cur=startF;do{cyc.push(cur);const nx=(nA[cur]!==prev)?nA[cur]:nB[cur];prev=cur;cur=nx}while(cur!==startF&&cyc.length<=M)}
   const L=cyc.length;
   const occ=new Uint8Array(M);for(const f of cyc)occ[f]=1;
+  // --- phase 5a: build the path along the planned route
+  let farRes=null;
+  if(farPlan){
+    const {route,choice,bfs,sideA,sideB,corners}=farPlan;const R=route.length;
+    const cells=c=>{const x=c%cw,y=(c/cw)|0,TL=(2*y)*W+2*x;return [TL,TL+1,TL+W+1,TL+W]}; // TL,TR,BR,BL
+    const path=[];
+    for(let i=0;i<R;i++){const cs=cells(route[i]),{e,dir}=choice[i],bf=bfs[i];let k=e;path.push(cs[k]);
+      for(let s=0;s<3;s++){const k2=(k+dir)%4,face=dir===1?k:k2;
+        if(bf[face]){const out=[-W,1,W,-1][face];let prev=cs[k],cur=cs[k]+out;
+          while(cur!==cs[k2]){path.push(cur);const nx=nA[cur]!==prev?nA[cur]:nB[cur];prev=cur;cur=nx}}
+        path.push(cs[k2]);k=k2;}}
+    farRes={path,startSide:sideA&&corners(sideA).includes(choice[0].e)?sideA:null,endSide:sideB&&corners(sideB).includes(choice[R-1].last)?sideB:null};
+  }
   // --- phase 5: cut cycle + tails to top / bottom border
   const neigh=(f)=>{const x=f%W,y=(f/W)|0,r=[];if(y>0)r.push(f-W);if(y<H-1)r.push(f+W);if(x>0)r.push(f-1);if(x<W-1)r.push(f+1);return r};
   const bfsDist=(seedFn)=>{const d=new Int32Array(M).fill(-1);const q=new Int32Array(M);let h=0,tl=0;
@@ -428,7 +500,7 @@ function generateMaze(t, cw, ch, opts){
   const pairs2=[['top','bottom',0],['bottom','top',2],['left','right',1],['right','left',3],
     ['top','right',4],['top','left',4],['left','bottom',4],['right','bottom',4],['bottom','left',6],['bottom','right',6],['left','top',6],['right','top',6]];
   const minSep=(W+H)/4;const cands=[];
-  for(let i=0;i<(opts.spine?0:L);i++){const u=cyc[i],v=cyc[(i+1)%L];
+  for(let i=0;i<((opts.spine||farRes)?0:L);i++){const u=cyc[i],v=cyc[(i+1)%L];
     const cu={},cv={};for(const k in sides){cu[k]=costTo(u,sides[k]);cv[k]=costTo(v,sides[k])}
     let best=1e9,bs=null;
     const ux=u%W,uy=(u/W)|0;
@@ -459,7 +531,8 @@ function generateMaze(t, cw, ch, opts){
     sCell=s;eCell=e;tailS=ts;tailE=te;sSide=sa;eSide=sb;break;}
   if(typeof DEBUG!=="undefined")console.log("cands",cands.length,cands.slice(0,5).map(c=>[c[0]|0,c[3],c[4],c[1]%W,(c[1]/W)|0]));
   let path;
-  if(opts.spine){
+  if(farRes){path=farRes.path;sSide=farRes.startSide;eSide=farRes.endSide;}
+  else if(opts.spine){
     // one-sided spine along a border column: walk it top to bottom, taking each side branch on the way
     const X=opts.spine==='right'?cw-1:0;path=[];
     const other=(cur,prev)=>nA[cur]!==prev?nA[cur]:nB[cur];
@@ -483,7 +556,7 @@ function generateMaze(t, cw, ch, opts){
   } else {
     // picture fills the borders, no room for lead-in lines: rebuild with a spine on the darker side
     let sl=0,sr=0;for(let y=0;y<ch;y++){sl+=t[y*cw];sr+=t[y*cw+cw-1]}
-    return generateMaze(t,cw,ch,Object.assign({},opts,{spine:sr>=sl?'right':'left'}));
+    return generateMaze(t,cw,ch,Object.assign({},opts,{ends:'far'}));
   }
   // --- phase 6: perfect maze around the fixed solution path
   const openR=new Uint8Array(M), openD=new Uint8Array(M), vis=new Uint8Array(M);
@@ -728,11 +801,7 @@ function updateThumb(){
   if(!state.src)return;
   const t=computeTarget(p,cw,ch);state.target=t;
   const th=$('thumb');th.width=cw;th.height=ch;const x=th.getContext('2d');const im=x.createImageData(cw,ch);
-  let S;
-  if(p.ends==='opposite'){const plan=spinePlan(t,cw,ch);
-    if(plan.transpose){const St=buildTree(transposeT(t,cw,ch),ch,cw,mulberry32(state.seed>>>0),{spine:plan.inner}).inS;S=new Uint8Array(cw*ch);for(let y=0;y<ch;y++)for(let xx=0;xx<cw;xx++)S[y*cw+xx]=St[xx*ch+y]}
-    else S=buildTree(t,cw,ch,mulberry32(state.seed>>>0),{spine:plan.side}).inS;}
-  else S=buildTree(t,cw,ch,mulberry32(state.seed>>>0),{}).inS;
+  const S=buildTree(t,cw,ch,mulberry32(state.seed>>>0),{}).inS;
   for(let i=0;i<cw*ch;i++){const v=S[i]?24:255;im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}
   x.putImageData(im,0,0);
   const tg=$('thumbGray');tg.width=cw;tg.height=ch;const gx=tg.getContext('2d');const gi=gx.createImageData(cw,ch);
@@ -803,7 +872,8 @@ function render(){
   x.fillStyle=ink;
   const mark=(f,side,inward)=>{const cx=f%m.W+0.5,cy=((f/m.W)|0)+0.5;
     if(side){const size=Math.min(2.2,Math.max(1.2,12/sc));const t=arrowPts(side,cx,cy,size,inward);x.beginPath();x.moveTo(t[0][0]*sc,t[0][1]*sc);x.lineTo(t[1][0]*sc,t[1][1]*sc);x.lineTo(t[2][0]*sc,t[2][1]*sc);x.closePath();x.fill()}
-    else{x.beginPath();x.arc(cx*sc,cy*sc,sc*0.35,0,Math.PI*2);x.fill()}};
+    else{const r=Math.max(sc*0.9,5);x.beginPath();x.arc(cx*sc,cy*sc,r,0,Math.PI*2);
+      if(inward)x.fill();else{x.lineWidth=Math.max(2,r*0.35);x.strokeStyle=ink;x.stroke()}}};
   mark(m.path[0],m.startSide,true);mark(m.path[m.path.length-1],m.endSide,false);
   x.restore();
 }
@@ -830,7 +900,7 @@ function pdfPage(doc,kind){
   const mark=(f,side,inward)=>{const cx=f%m.W+0.5,cy=((f/m.W)|0)+0.5;
     if(side){const size=Math.max(3.2,Math.min(6,s*1.6))/s;const t=arrowPts(side,cx,cy,size,inward).map(q=>P(q[0],q[1]));
       doc.triangle(t[0][0],t[0][1],t[1][0],t[1][1],t[2][0],t[2][1],'F')}
-    else{const c=P(cx,cy);doc.circle(c[0],c[1],s*0.35,'F')}};
+    else{const c=P(cx,cy);const r=Math.max(s*0.9,1.6);if(inward)doc.circle(c[0],c[1],r,'F');else{doc.setDrawColor(24,37,79);doc.setLineWidth(Math.max(0.3,r*0.3));doc.circle(c[0],c[1],r,'S')}}};
   mark(m.path[0],m.startSide,true);mark(m.path[m.path.length-1],m.endSide,false);
 }
 function makePDF(kinds){
