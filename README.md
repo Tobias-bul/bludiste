@@ -2,7 +2,7 @@
 
 ## Jednorázové nastavení (jen poprvé)
 1. Otevři `.github/workflows/android.yml` → tužka (Upravit) → smaž obsah a vlož obsah stejnojmenného souboru z tohoto zipu → Commit.
-2. Settings → Pages → Source: **GitHub Actions**.
+2. Settings → Pages → Source: **Deploy from a branch**, větev `main`, složka `/ (root)`.
 
 ## Každá další aktualizace
 Add file → Upload files → nahraj celý zip → Commit. Hotovo.

@@ -235,9 +235,7 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
         </div>
         <div class="field"><label for="branch">Slepé uličky</label><output id="branchV"></output><input id="branch" type="range" min="0" max="1" step="0.05" value="0.75">
           <span class="hint">Vlevo krátké a časté odbočky, vpravo dlouhé klikaté chodby.</span></div>
-        <div class="selects one"><div><label for="ends">Start a cíl</label>
-          <select id="ends"><option value="far">Daleko od sebe, bez čar navíc</option><option value="short">Na okraji papíru (krátké čáry k okraji)</option></select></div></div>
-        <p class="hint">Daleko od sebe: start a cíl leží přímo v obrázku co nejdál od sebe (nebo na okraji papíru, když tam obrázek sahá). Plný kroužek je start, prázdný cíl. Oddělené části obrázku spojí jen krátká čára, bez ní by cesta nešla projít.</p>
+        <p class="hint" style="margin-top:12px">Start a cíl jsou na okrajích bludiště, co nejdál od sebe. Vybírají se místa, kde je obrázek okraji nejblíž, takže čára k okraji je co nejkratší, a když obrázek sahá až k okraji, není tam žádná.</p>
         <label class="check"><input id="camo" type="checkbox" checked> Skrýt obrázek v zadání</label>
         <p class="hint">Slepé uličky se kreslí stejným stylem jako správná cesta, takže podle bludiště není poznat, co v něm je.</p>
         <p class="stats" id="gridinfo"></p>
@@ -410,19 +408,24 @@ function generateMaze(t, cw, ch, opts){
     const treeNb=c=>nbs(c).filter(n=>inS[n]&&hasE(c,n));
     const bfsT=src=>{const d=new Int32Array(N2).fill(-1),par=new Int32Array(N2).fill(-1);const q=[src];d[src]=0;for(let h=0;h<q.length;h++){const c=q[h];for(const n of treeNb(c))if(d[n]<0){d[n]=d[c]+1;par[n]=c;q.push(n)}}return {d,par}};
     const dirOf=(a,b)=>b===a-cw?0:b===a+1?1:b===a+cw?2:3;
-    const onSide={top:[],bottom:[],left:[],right:[]};
-    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!inS[c])continue;
-      if(y===0)onSide.top.push(c);if(y===ch-1)onSide.bottom.push(c);if(x===0)onSide.left.push(c);if(x===cw-1)onSide.right.push(c)}
+    // for each paper edge: the picture blocks closest to it (a straight lead-in line from there is the shortest)
+    const sd={top:c=>(c/cw)|0,bottom:c=>ch-1-((c/cw)|0),left:c=>c%cw,right:c=>cw-1-c%cw};
+    const near={},dmin={};
+    for(const k in sd){let m=1e9;for(let i=0;i<N2;i++)if(inS[i])m=Math.min(m,sd[k](i));dmin[k]=m;near[k]=[];for(let i=0;i<N2;i++)if(inS[i]&&sd[k](i)<=m+(m>0?1:0))near[k].push(i)}
     const md=(a,b)=>Math.abs(a%cw-b%cw)+Math.abs(((a/cw)|0)-((b/cw)|0));
-    let A=-1,B=-1,sideA=null,sideB=null;
-    const order=cw>=ch?[['left','right'],['top','bottom']]:[['top','bottom'],['left','right']];
-    for(const [s1,s2] of order){if(A>=0)break;if(!onSide[s1].length||!onSide[s2].length)continue;
-      let best=-1;for(let k=0;k<16;k++){const a=onSide[s1][(rnd()*onSide[s1].length)|0];for(const b of onSide[s2]){const d=md(a,b);if(d>best){best=d;A=a;B=b}}}
-      sideA=s1;sideB=s2;}
+    const opp={top:'bottom',bottom:'top',left:'right',right:'left'};
+    let A=-1,B=-1,sideA=null,sideB=null,bestScore=1e9;
+    const sides=['top','bottom','left','right'];
+    for(const s1 of sides)for(const s2 of sides){if(s1===s2||!near[s1].length||!near[s2].length)continue;
+      if(opp[s1]!==s2&&s1>s2)continue;
+      let a=-1,b=-1,sep=-1;for(let k=0;k<12;k++){const aa=near[s1][(rnd()*near[s1].length)|0];for(const bb of near[s2]){const d=md(aa,bb);if(d>sep){sep=d;a=aa;b=bb}}}
+      if(sep<(cw+ch)/5)continue;
+      const score=dmin[s1]+dmin[s2]+(opp[s1]===s2?0:(cw+ch)*0.06)+rnd()*0.5;
+      if(score<bestScore){bestScore=score;A=a;B=b;sideA=s1;sideB=s2}}
     if(A<0){let a0=-1;for(let i=0;i<N2;i++)if(inS[i]){a0=i;break}
-      const any=['top','left','bottom','right'].find(s=>onSide[s].length);
-      if(any){A=onSide[any][(onSide[any].length/2)|0];sideA=any}else{const r0=bfsT(a0).d;A=a0;for(let i=0;i<N2;i++)if(r0[i]>r0[A])A=i}
-      const rA=bfsT(A).d;B=A;for(let i=0;i<N2;i++)if(rA[i]>rA[B])B=i;}
+      sideA=sides.reduce((p,k)=>dmin[k]<dmin[p]?k:p,'top');A=near[sideA][0];
+      const rA=bfsT(A).d;B=A;for(let i=0;i<N2;i++)if(rA[i]>rA[B])B=i;
+      sideB=sides.filter(k=>k!==sideA).reduce((p,k)=>sd[k](B)<sd[p](B)?k:p,sides.find(k=>k!==sideA));}
     const corners=s=>s==='top'?[0,1]:s==='right'?[1,2]:s==='bottom'?[2,3]:s==='left'?[3,0]:[0,1,2,3];
     const mirror={0:{0:3,1:2},1:{1:0,2:3},2:{2:1,3:0},3:{3:2,0:1}};
     const subtree=(root,cut)=>{const out=[root],seen=new Set([root,cut]);for(let h=0;h<out.length;h++)for(const n of treeNb(out[h]))if(!seen.has(n)){seen.add(n);out.push(n)}return out};
@@ -483,7 +486,23 @@ function generateMaze(t, cw, ch, opts){
         if(bf[face]){const out=[-W,1,W,-1][face];let prev=cs[k],cur=cs[k]+out;
           while(cur!==cs[k2]){path.push(cur);const nx=nA[cur]!==prev?nA[cur]:nB[cur];prev=cur;cur=nx}}
         path.push(cs[k2]);k=k2;}}
-    farRes={path,startSide:sideA&&corners(sideA).includes(choice[0].e)?sideA:null,endSide:sideB&&corners(sideB).includes(choice[R-1].last)?sideB:null};
+    // short straight lead-in lines from the start and the end to their paper edges
+    const used=new Uint8Array(M);for(const f of path)used[f]=1;
+    const onEdge={top:f=>f<W,bottom:f=>f>=M-W,left:f=>f%W===0,right:f=>f%W===W-1};
+    const lead=(from,side)=>{if(onEdge[side](from))return [];const pr=new Int32Array(M).fill(-2);pr[from]=-1;const q=[from];
+      const dirs={top:[-W],bottom:[W],left:[-1],right:[1]}[side];
+      for(let h=0;h<q.length;h++){const c=q[h];const x=c%W,y=(c/W)|0;
+        const ns=[dirs[0]];for(const d of [-W,W,-1,1])if(d!==dirs[0])ns.push(d); // prefer heading straight to the edge
+        for(const d of ns){const n=c+d;if(d===-1&&x===0||d===1&&x===W-1||n<0||n>=M)continue;if(used[n]||pr[n]!==-2)continue;
+          pr[n]=c;if(onEdge[side](n)){const p=[];let z=n;while(z!==from){p.push(z);z=pr[z]}p.reverse();for(const f of p)used[f]=1;return p}q.push(n)}}
+      return null};
+    const leadAny=(from,pref,avoid)=>{const dist=(f,k)=>k==='top'?((f/W)|0):k==='bottom'?H-1-((f/W)|0):k==='left'?f%W:W-1-f%W;
+      const order=[pref].concat(['top','bottom','left','right'].filter(k=>k!==pref).sort((a,b)=>(a===avoid)-(b===avoid)||dist(from,a)-dist(from,b)));
+      for(const k of order){const p=lead(from,k);if(p)return {p,k}}return null};
+    const lS=leadAny(path[0],sideA,sideB);const lE=leadAny(path[path.length-1],sideB,lS?lS.k:sideA);
+    const tS=lS&&lS.p,tE=lE&&lE.p;const sA2=lS?lS.k:null,sB2=lE?lE.k:null;
+    const full=[];if(tS)for(let i=tS.length-1;i>=0;i--)full.push(tS[i]);for(const f of path)full.push(f);if(tE)for(const f of tE)full.push(f);
+    farRes={path:full,startSide:sA2,endSide:sB2};
   }
   // --- phase 5: cut cycle + tails to top / bottom border
   const neigh=(f)=>{const x=f%W,y=(f/W)|0,r=[];if(y>0)r.push(f-W);if(y<H-1)r.push(f+W);if(x>0)r.push(f-1);if(x<W-1)r.push(f+1);return r};
@@ -739,7 +758,7 @@ function sampleLayer(layer,cw,ch,crop,channel){
 const P=()=>({
   contrast:+$('contrast').value, bright:+$('bright').value, sharp:+$('sharp').value, maxcov:+$('maxcov').value,
   invert:$('invert').checked, shape:$('shape').value, paper:$('paper').value, orient:$('orient').value,
-  cols:+$('cols').value, branch:+$('branch').value, ends:$('ends').value, camo:$('camo').checked, bg:+$('bg').value, vig:+$('vig').value });
+  cols:+$('cols').value, branch:+$('branch').value, ends:'far', camo:$('camo').checked, bg:+$('bg').value, vig:+$('vig').value });
 
 function computeDims(p){
   const [a,b]=PAPERS[p.paper];
@@ -936,7 +955,7 @@ function syncOutputs(){
 let thumbTimer=0;
 function onSetting(){syncOutputs();clearTimeout(thumbTimer);thumbTimer=setTimeout(updateThumb,60);markStale()}
 ['contrast','bright','sharp','maxcov','cols','branch','bg','vig','bsize','dsize'].forEach(id=>$(id).addEventListener('input',onSetting));
-['invert','paper','orient','ends','camo'].forEach(id=>$(id).addEventListener('change',onSetting));
+['invert','paper','orient','camo'].forEach(id=>$(id).addEventListener('change',onSetting));
 $('shape').addEventListener('change',()=>{fitCropToShape();onSetting()});
 ['paper','orient'].forEach(id=>$(id).addEventListener('change',()=>{if($('shape').value==='paper'){fitCropToShape();updateThumb()}}));
 document.querySelectorAll('[data-cols]').forEach(bt=>bt.addEventListener('click',()=>{$('cols').value=bt.dataset.cols;onSetting()}));
