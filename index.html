@@ -77,7 +77,13 @@ input[type=file]{position:absolute; width:1px; height:1px; opacity:0}
 #thumbGray{display:block; image-rendering:pixelated}
 .pvcap{font-size:13px; color:var(--ink-soft); margin:4px 2px 0; text-align:center}
 .segfull{display:flex; width:100%}
-.segfull button{flex:1}
+.segfull button{flex:1; padding:8px 4px; font-size:14px}
+.selects.one{grid-template-columns:1fr; margin-top:12px}
+#cropBtns,#brushOpts{margin-top:6px}
+#draw{display:block; max-width:100%; touch-action:auto; background:#fff}
+#draw.painting{touch-action:none; cursor:crosshair}
+textarea{font:inherit; width:100%; padding:10px; border-radius:10px; border:1.5px solid var(--line); background:var(--surface); color:var(--ink); resize:vertical}
+.row label.btn,.row button{flex:1 1 auto}
 .paintwrap{margin:12px 0 6px; display:flex; justify-content:center; background:#fff; border:1.5px solid var(--line); border-radius:10px; padding:6px}
 #paint{display:block; max-width:100%; touch-action:auto}
 #paint.painting{touch-action:none; cursor:crosshair; outline:3px solid var(--marker); outline-offset:2px}
@@ -144,21 +150,39 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
         <h2>Obrázek</h2>
         <div class="row">
           <label class="btn grow" for="file">Nahrát fotku<input id="file" type="file" accept="image/*"></label>
-          <button id="rand" class="grow" type="button">Náhodný obrázek</button>
+          <button id="drawBtn" class="grow" type="button">Nakreslit</button>
+          <button id="rand" class="grow" type="button">Náhodný</button>
         </div>
-        <details class="crop"><summary>Výřez fotky</summary>
-          <div class="field"><label for="zoom">Přiblížení</label><output id="zoomV"></output><input id="zoom" type="range" min="1" max="4" step="0.05" value="1"></div>
-          <div class="field"><label for="px">Posun do stran</label><output id="pxV"></output><input id="px" type="range" min="0" max="1" step="0.01" value="0.5"></div>
-          <div class="field"><label for="py">Posun nahoru a dolů</label><output id="pyV"></output><input id="py" type="range" min="0" max="1" step="0.01" value="0.5"></div>
-          <span class="hint">Obličej přes většinu bludiště dá nejvýraznější výsledek.</span>
-        </details>
         <div class="field"><label for="contrast">Kontrast</label><output id="contrastV"></output><input id="contrast" type="range" min="0.5" max="2.5" step="0.05" value="1.25"></div>
         <div class="field"><label for="bright">Jas</label><output id="brightV"></output><input id="bright" type="range" min="-0.5" max="0.5" step="0.02" value="0.06"></div>
         <div class="field"><label for="sharp">Ostrost detailů</label><output id="sharpV"></output><input id="sharp" type="range" min="0" max="2" step="0.1" value="0.7"></div>
         <div class="field"><label for="maxcov">Sytost tmavých míst</label><output id="maxcovV"></output><input id="maxcov" type="range" min="0.6" max="1" step="0.01" value="0.9">
           <span class="hint">Pod 100 % zůstanou i v tmavých místech slepé odbočky, takže je bludiště těžší.</span></div>
         <label class="check"><input id="invert" type="checkbox"> Obrátit světlé a tmavé</label>
-        <label class="check"><input id="fill" type="checkbox"> Vyplnit celý papír (ořízne okraje fotky)</label>
+      </div>
+
+      <div class="panel" id="drawPanel" hidden>
+        <h2>Kreslení</h2>
+        <div class="seg segfull" role="group" aria-label="Nástroj kreslení">
+          <button type="button" data-dtool="off" aria-pressed="false">Vypnuto</button>
+          <button type="button" data-dtool="pen" aria-pressed="true">Pero</button>
+          <button type="button" data-dtool="eraser" aria-pressed="false">Guma</button>
+        </div>
+        <div class="paintwrap"><canvas id="draw" width="1200" height="1200" aria-label="Plocha na kreslení"></canvas></div>
+        <div class="field"><label for="dsize">Tloušťka</label><output id="dsizeV"></output><input id="dsize" type="range" min="0.01" max="0.12" step="0.005" value="0.04"></div>
+        <div class="row"><button id="dUndo" type="button" class="grow">Zpět</button><button id="dClear" type="button" class="grow">Vymazat vše</button></div>
+        <label class="blabel" for="dtext" style="display:block;margin-top:14px">Text</label>
+        <textarea id="dtext" rows="2" placeholder="Napiš text, třeba jméno"></textarea>
+        <div class="row" style="margin-top:8px">
+          <select id="dfont" aria-label="Písmo" style="flex:1 1 140px;width:auto">
+            <option value="800 1px 'Bricolage Grotesque', system-ui, sans-serif">Tučné</option>
+            <option value="700 1px 'Atkinson Hyperlegible', system-ui, sans-serif">Obyčejné</option>
+            <option value="700 1px Georgia, 'Times New Roman', serif">Patkové</option>
+            <option value="italic 700 1px Georgia, serif">Kurzíva</option>
+          </select>
+          <button id="dText" type="button" class="grow">Vložit text</button>
+        </div>
+        <p class="hint">Text se vloží doprostřed přes celou šířku a pak kolem něj můžeš kreslit. Tlusté čáry a velké písmo vyjdou v bludišti nejlíp. Když chceš scrollovat přes plochu, přepni na Vypnuto.</p>
       </div>
 
       <div class="panel">
@@ -171,26 +195,35 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
       </div>
 
       <div class="panel">
-        <h2>Úpravy štětcem</h2>
-        <div class="seg segfull" role="group" aria-label="Štětec">
-          <button type="button" data-brush="off" aria-pressed="true">Vypnutý</button>
-          <button type="button" data-brush="erase" aria-pressed="false">Smazat</button>
-          <button type="button" data-brush="keep" aria-pressed="false">Ponechat</button>
+        <h2>Oříznutí a štětec</h2>
+        <div class="seg segfull" role="group" aria-label="Nástroj">
+          <button type="button" data-tool="off" aria-pressed="true">Vypnuto</button>
+          <button type="button" data-tool="crop" aria-pressed="false">Oříznout</button>
+          <button type="button" data-tool="erase" aria-pressed="false">Smazat</button>
+          <button type="button" data-tool="keep" aria-pressed="false">Ponechat</button>
         </div>
-        <div class="paintwrap"><canvas id="paint" width="10" height="10" aria-label="Plocha pro kreslení štětcem"></canvas></div>
-        <p class="hint">Zapni Smazat a přejeď prstem přes to, co v obrázku nechceš, třeba obrazy na zdi (zčervená). Ponechat (zezelená) chrání místo před ztlumením. Když je štětec vypnutý, plochou jde normálně posouvat.</p>
-        <div class="field"><label for="bsize">Velikost štětce</label><output id="bsizeV"></output><input id="bsize" type="range" min="0.02" max="0.2" step="0.01" value="0.07"></div>
-        <div class="row"><button id="clearMask" type="button" class="grow">Zrušit úpravy štětcem</button></div>
+        <div class="paintwrap"><canvas id="paint" width="10" height="10" aria-label="Plocha pro oříznutí a kreslení štětcem"></canvas></div>
+        <p class="hint" id="toolhint">Vyber nástroj. Když je vypnutý, plochou jde normálně posouvat.</p>
+        <div class="row" id="cropBtns">
+          <button id="autoCrop" type="button" class="grow">Oříznout na obsah</button>
+          <button id="fullCrop" type="button" class="grow">Celá fotka</button>
+        </div>
+        <div id="brushOpts">
+          <div class="field"><label for="bsize">Velikost štětce</label><output id="bsizeV"></output><input id="bsize" type="range" min="0.02" max="0.2" step="0.01" value="0.07"></div>
+          <div class="row"><button id="clearMask" type="button" class="grow">Zrušit úpravy štětcem</button></div>
+        </div>
       </div>
 
       <div class="panel">
-        <h2>Velikost</h2>
+        <h2>Bludiště</h2>
         <div class="selects">
           <div><label for="paper">Papír</label>
             <select id="paper"><option>A4</option><option>A3</option><option>A2</option><option value="Letter">Letter</option></select></div>
           <div><label for="orient">Orientace</label>
             <select id="orient"><option value="auto">Podle obrázku</option><option value="p">Na výšku</option><option value="l">Na šířku</option></select></div>
         </div>
+        <div class="selects one"><div><label for="shape">Tvar bludiště</label>
+          <select id="shape"><option value="image">Podle obrázku</option><option value="square">Čtverec</option><option value="paper">Celý papír</option><option value="34">Obdélník na výšku (3:4)</option><option value="43">Obdélník na šířku (4:3)</option></select></div></div>
         <div class="field"><label for="cols">Políček na šířku</label><output id="colsV"></output><input id="cols" type="range" min="40" max="600" step="2" value="160">
           <span class="hint">Víc políček znamená větší bludiště a ostřejší obrázek.</span></div>
         <div class="chips" role="group" aria-label="Předvolby velikosti">
@@ -202,6 +235,11 @@ details summary{cursor:pointer; font-weight:700; color:var(--ink); min-height:32
         </div>
         <div class="field"><label for="branch">Slepé uličky</label><output id="branchV"></output><input id="branch" type="range" min="0" max="1" step="0.05" value="0.75">
           <span class="hint">Vlevo krátké a časté odbočky, vpravo dlouhé klikaté chodby.</span></div>
+        <div class="selects one"><div><label for="ends">Start a cíl</label>
+          <select id="ends"><option value="opposite">Na opačných stranách obrázku</option><option value="short">Co nejkratší čáry k okraji</option></select></div></div>
+        <p class="hint">Na opačných stranách: cesta vede podél jednoho okraje obrázku, který tak po vyřešení dostane tenký rámeček.</p>
+        <label class="check"><input id="camo" type="checkbox" checked> Skrýt obrázek v zadání</label>
+        <p class="hint">Slepé uličky se kreslí stejným stylem jako správná cesta, takže podle bludiště není poznat, co v něm je.</p>
         <p class="stats" id="gridinfo"></p>
       </div>
 
@@ -451,6 +489,31 @@ function generateMaze(t, cw, ch, opts){
   const openR=new Uint8Array(M), openD=new Uint8Array(M), vis=new Uint8Array(M);
   const open=(a,b)=>{ if(b===a+1)openR[a]=1; else if(a===b+1)openR[b]=1; else if(b===a+W)openD[a]=1; else openD[b]=1; };
   for(let i=0;i<path.length;i++){vis[path[i]]=1;if(i)open(path[i-1],path[i])}
+  // camouflage: dead ends built from the same 2×2 "tubes" as the picture, so the puzzle looks uniform
+  const tubeOf=new Int32Array(M).fill(-1), tubes=[];
+  if(opts.camo){
+    const free=new Uint8Array(N);
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const f=(2*y)*W+2*x;if(!vis[f]&&!vis[f+1]&&!vis[f+W]&&!vis[f+W+1])free[y*cw+x]=1}
+    const ufc=makeUF(N),size=new Int32Array(N).fill(1),cap=new Int32Array(N);
+    for(let i=0;i<N;i++)cap[i]=4+((rnd()*rnd()*60)|0);
+    const tR=new Uint8Array(N),tD=new Uint8Array(N);const es=[];
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!free[c])continue;if(x<cw-1&&free[c+1])es.push(c*2);if(y<ch-1&&free[c+cw])es.push(c*2+1)}
+    for(let i=es.length-1;i>0;i--){const j=(rnd()*(i+1))|0;const tmp=es[i];es[i]=es[j];es[j]=tmp}
+    for(const e of es){const c=e>>1,n=(e&1)?c+cw:c+1;const a=ufc.find(c),b=ufc.find(n);if(a===b)continue;
+      if(size[a]+size[b]>Math.min(cap[a],cap[b]))continue;ufc.union(a,b);const r=ufc.find(a);size[r]=size[a]+size[b];cap[r]=Math.min(cap[a],cap[b]);
+      if(e&1)tD[c]=1;else tR[c]=1;}
+    const lA=new Int32Array(M).fill(-1),lB=new Int32Array(M).fill(-1);
+    const lk=(a,b)=>{if(lA[a]<0)lA[a]=b;else lB[a]=b;if(lA[b]<0)lA[b]=a;else lB[b]=a};
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!free[c])continue;
+      const TL=(2*y)*W+2*x,TR=TL+1,BL=TL+W,BR=BL+1;
+      const up=y>0&&tD[c-cw],left=x>0&&tR[c-1],right=tR[c],down=tD[c];
+      if(!up)lk(TL,TR);if(!down)lk(BL,BR);if(!left)lk(TL,BL);if(!right)lk(TR,BR);
+      if(right){lk(TR,TL+2);lk(BR,BL+2)}if(down){lk(BL,BL+W);lk(BR,BR+W)}}
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const c=y*cw+x;if(!free[c])continue;const s0=(2*y)*W+2*x;if(tubeOf[s0]>=0)continue;
+      const cyc2=[];let prev=-1,cur=s0;do{cyc2.push(cur);const nx=lA[cur]!==prev?lA[cur]:lB[cur];prev=cur;cur=nx}while(cur!==s0);
+      const k=(rnd()*cyc2.length)|0;const tp=[];for(let i=0;i<cyc2.length;i++)tp.push(cyc2[(k+i)%cyc2.length]);
+      const id=tubes.length;tubes.push(tp);for(let i=0;i<tp.length;i++){tubeOf[tp[i]]=id;if(i)open(tp[i-1],tp[i])}}
+  }
   {
     const pNew=0.55+0.44*(opts.branchiness==null?0.6:opts.branchiness);
     const act=path.slice();
@@ -462,10 +525,33 @@ function generateMaze(t, cw, ch, opts){
       if(x>0&&!vis[c-1])tmpN[n++]=c-1; if(x<W-1&&!vis[c+1])tmpN[n++]=c+1;
       if(y>0&&!vis[c-W])tmpN[n++]=c-W; if(y<H-1&&!vis[c+W])tmpN[n++]=c+W;
       if(!n){act[idx]=act[act.length-1];act.pop();continue}
-      const nx=tmpN[(rnd()*n)|0];vis[nx]=1;open(c,nx);act.push(nx);
+      const nx=tmpN[(rnd()*n)|0];open(c,nx);
+      const tb=tubeOf[nx];
+      if(tb>=0){const tp=tubes[tb];for(const f of tp){vis[f]=1;act.push(f)}act.push(nx)}
+      else{vis[nx]=1;act.push(nx)}
     }
   }
   return {W,H,openR,openD,path,coarseS:inS,cw,ch,startSide:sSide,endSide:eSide};
+}
+
+// start and end on opposite sides of the picture: one-sided spine along the darker border
+function pickSpine(t,cw,ch){let sl=0,sr=0;for(let y=0;y<ch;y++){sl+=t[y*cw];sr+=t[y*cw+cw-1]}return sr>=sl?'right':'left'}
+function transposeT(t,cw,ch){const o=new Float32Array(cw*ch);for(let y=0;y<ch;y++)for(let x=0;x<cw;x++)o[x*ch+y]=t[y*cw+x];return o}
+function transposeMaze(m){
+  const W=m.H,H=m.W,M=W*H;const openR=new Uint8Array(M),openD=new Uint8Array(M);
+  for(let y=0;y<m.H;y++)for(let x=0;x<m.W;x++){const o=y*m.W+x,n=x*W+y;openR[n]=m.openD[o];openD[n]=m.openR[o]}
+  const path=m.path.map(f=>(f%m.W)*W+((f/m.W)|0));
+  const sw={top:'left',bottom:'right',left:'top',right:'bottom'};
+  const cs=new Uint8Array(m.cw*m.ch);for(let y=0;y<m.ch;y++)for(let x=0;x<m.cw;x++)cs[x*m.ch+y]=m.coarseS[y*m.cw+x];
+  return {W,H,openR,openD,path,coarseS:cs,cw:m.ch,ch:m.cw,startSide:sw[m.startSide]||null,endSide:sw[m.endSide]||null,spineSide:sw[m.spineSide]||null};
+}
+// which border gets the spine for "opposite ends" (null = short lead-in lines)
+function spinePlan(t,cw,ch){ if(cw>ch){const tt=transposeT(t,cw,ch);const s=pickSpine(tt,ch,cw);return {transpose:true,side:s==='left'?'top':'bottom',inner:s}} return {transpose:false,side:pickSpine(t,cw,ch),inner:pickSpine(t,cw,ch)} }
+function makeMaze(t,cw,ch,opts){
+  if(opts.ends!=='opposite')return generateMaze(t,cw,ch,opts);
+  const plan=spinePlan(t,cw,ch);
+  if(plan.transpose){const m=generateMaze(transposeT(t,cw,ch),ch,cw,Object.assign({},opts,{spine:plan.inner}));m.spineSide=plan.inner;return transposeMaze(m)}
+  const m=generateMaze(t,cw,ch,Object.assign({},opts,{spine:plan.side}));m.spineSide=plan.side;return m;
 }
 
 // side of the outer wall where an endpoint opens, or null
@@ -513,7 +599,7 @@ const MARGIN=12; // mm
 const MAX_CELLS=420000;
 const EMOJI=['🐱','🐶','🦊','🐼','🦁','🐸','🐵','🦉','🐢','🐙','🦄','🐧','🐨','🐯','🐮','🐷','🐰','🚀','⭐','🌻','🍄','⚓','🎸','👻','🦖','🐳','🍎','🎃','☂️','🦋'];
 
-const state={seg:null,erase:null,keep:null,crop:null,brush:'off',src:null,srcName:'',seed:(Math.random()*1e9)>>>0,maze:null,segs:null,poly:null,mm:0,view:'puzzle',zoom:1,stale:false,target:null,dims:null};
+const state={seg:null,erase:null,keep:null,crop:null,brush:'off',cropRect:{x:0,y:0,w:1,h:1},srcGray:null,src:null,srcName:'',seed:(Math.random()*1e9)>>>0,maze:null,segs:null,poly:null,mm:0,view:'puzzle',zoom:1,stale:false,target:null,dims:null};
 
 // ---------- downloads (claude.ai capability, or normal browser download on your own hosting)
 let downloads=null; const inClaude=!!(window.claude&&window.claude.use);
@@ -549,7 +635,7 @@ function setSourceFromImage(img,name){
   const w=Math.max(1,Math.round((img.naturalWidth||img.width)*k)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*k));
   const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
   x.fillStyle='#fff';x.fillRect(0,0,w,h);x.imageSmoothingQuality='high';x.drawImage(img,0,0,w,h);
-  state.src=c;state.srcName=name;newLayers();
+  state.src=c;state.srcName=name;state.isDrawing=false;newLayers();fitCropToShape();$('drawPanel').hidden=true;
 }
 function randomEmoji(){
   const e=EMOJI[(Math.random()*EMOJI.length)|0];
@@ -558,10 +644,13 @@ function randomEmoji(){
   x.textAlign='center';x.textBaseline='middle';
   x.font='460px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif';
   x.fillText(e,300,325);
-  state.src=c;state.srcName='náhodný obrázek';newLayers();
+  state.src=c;state.srcName='náhodný obrázek';state.isDrawing=false;newLayers();fitCropToShape();$('drawPanel').hidden=true;
 }
 
-function newLayers(){
+function makeGray(){const c=document.createElement('canvas');c.width=state.src.width;c.height=state.src.height;const x=c.getContext('2d',{willReadFrequently:true});
+  x.drawImage(state.src,0,0);const im=x.getImageData(0,0,c.width,c.height),d=im.data;
+  for(let i=0;i<d.length;i+=4){const v=0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2];d[i]=d[i+1]=d[i+2]=v}x.putImageData(im,0,0);state.srcGray=c}
+function newLayers(){state.cropRect={x:0,y:0,w:1,h:1};makeGray();
   const mk=()=>{const c=document.createElement('canvas');c.width=state.src.width;c.height=state.src.height;return c};
   state.erase=mk();state.keep=mk();state.seg=null;
   if($('bg')){$('bg').value=1;$('bg').disabled=true;$('detectStatus').textContent='Najde člověka na fotce a pozadí za ním ztlumí.'}
@@ -576,16 +665,16 @@ function sampleLayer(layer,cw,ch,crop,channel){
 // ---------- settings
 const P=()=>({
   contrast:+$('contrast').value, bright:+$('bright').value, sharp:+$('sharp').value, maxcov:+$('maxcov').value,
-  invert:$('invert').checked, fill:$('fill').checked, paper:$('paper').value, orient:$('orient').value,
-  cols:+$('cols').value, branch:+$('branch').value, zoom:+$('zoom').value, px:+$('px').value, py:+$('py').value, bg:+$('bg').value, vig:+$('vig').value });
+  invert:$('invert').checked, shape:$('shape').value, paper:$('paper').value, orient:$('orient').value,
+  cols:+$('cols').value, branch:+$('branch').value, ends:$('ends').value, camo:$('camo').checked, bg:+$('bg').value, vig:+$('vig').value });
 
 function computeDims(p){
   const [a,b]=PAPERS[p.paper];
-  const asp=state.src?(state.src.width/state.src.height):1;
-  const ors=p.orient==='auto'?['p','l']:[p.orient];let best=null;
+  const cr=state.cropRect;const A=shapeAspect(p);const asp=A||(state.src?((state.src.width*cr.w)/(state.src.height*cr.h)):1);
+  const ors=p.shape==='paper'?[paperOrient(p)]:(p.orient==='auto'?['p','l']:[p.orient]);let best=null;
   for(const o of ors){
     const pw=(o==='p'?a:b)-2*MARGIN, ph=(o==='p'?b:a)-2*MARGIN;
-    let W=p.cols-p.cols%2, H=p.fill?Math.round(W*ph/pw):Math.round(W/asp);
+    let W=p.cols-p.cols%2, H=Math.round(W/asp);
     H=Math.max(4,H-H%2);const s=Math.min(pw/W,ph/H);
     if(!best||s>best.s)best={W,H,s,o,paperW:o==='p'?a:b,paperH:o==='p'?b:a};
   }
@@ -596,10 +685,9 @@ function computeTarget(p,cw,ch){
   const src=state.src;const k=Math.max(1,Math.min(4,Math.floor(1400/Math.max(cw,ch))));
   const w=cw*k,h=ch*k;const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});
   x.fillStyle='#fff';x.fillRect(0,0,w,h);x.imageSmoothingQuality='high';
-  let sw=src.width,sh=src.height;
-  if(p.fill){const ta=cw/ch,sa=sw/sh;if(sa>ta)sw=sh*ta;else sh=sw/ta}
-  sw/=p.zoom;sh/=p.zoom;
-  const sx=(src.width-sw)*p.px, sy=(src.height-sh)*p.py;state.crop={sx,sy,sw,sh};
+  const cr=state.cropRect;let sx=cr.x*src.width,sy=cr.y*src.height,sw=cr.w*src.width,sh=cr.h*src.height;
+  if(p.shape!=='image'){const ta=cw/ch,sa=sw/sh;if(sa>ta){const nw=sh*ta;sx+=(sw-nw)/2;sw=nw}else{const nh=sw/ta;sy+=(sh-nh)/2;sh=nh}}
+  state.crop={sx,sy,sw,sh};
   x.drawImage(src,sx,sy,sw,sh,0,0,w,h);
   const d=x.getImageData(0,0,w,h).data;const N=cw*ch;let L=new Float32Array(N);
   for(let y=0;y<ch;y++)for(let xx=0;xx<cw;xx++){let s=0;
@@ -640,7 +728,11 @@ function updateThumb(){
   if(!state.src)return;
   const t=computeTarget(p,cw,ch);state.target=t;
   const th=$('thumb');th.width=cw;th.height=ch;const x=th.getContext('2d');const im=x.createImageData(cw,ch);
-  const S=buildTree(t,cw,ch,mulberry32(state.seed>>>0),{}).inS;
+  let S;
+  if(p.ends==='opposite'){const plan=spinePlan(t,cw,ch);
+    if(plan.transpose){const St=buildTree(transposeT(t,cw,ch),ch,cw,mulberry32(state.seed>>>0),{spine:plan.inner}).inS;S=new Uint8Array(cw*ch);for(let y=0;y<ch;y++)for(let xx=0;xx<cw;xx++)S[y*cw+xx]=St[xx*ch+y]}
+    else S=buildTree(t,cw,ch,mulberry32(state.seed>>>0),{spine:plan.side}).inS;}
+  else S=buildTree(t,cw,ch,mulberry32(state.seed>>>0),{}).inS;
   for(let i=0;i<cw*ch;i++){const v=S[i]?24:255;im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}
   x.putImageData(im,0,0);
   const tg=$('thumbGray');tg.width=cw;tg.height=ch;const gx=tg.getContext('2d');const gi=gx.createImageData(cw,ch);
@@ -662,10 +754,10 @@ function generate(){
     try{
       const p=P();updateThumb();const dm=state.dims;
       const t0=performance.now();
-      let m=generateMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch});
+      let m=makeMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch,ends:p.ends,camo:p.camo});
       // safety net: if the picture got lost, rebuild without tone compensation
       let want=0;for(const v of state.target)want+=v;want*=4;
-      if(want>400&&m.path.length<want*0.3){console.warn('coverage low',m.path.length,want);m=generateMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch,iters:1})}
+      if(want>400&&m.path.length<want*0.3){console.warn('coverage low',m.path.length,want);m=makeMaze(state.target,dm.W/2,dm.H/2,{seed:state.seed,branchiness:p.branch,ends:p.ends,camo:p.camo,iters:1})}
       state.maze=m;state.segs=wallSegments(m);state.poly=solutionPolyline(m);state.mm=dm.s;state.paper=p.paper;state.dm=dm;
       state.stale=false;
       const len=m.path.length*dm.s/1000;
@@ -756,7 +848,7 @@ function exportPDF(kinds,suffix){
   setTimeout(()=>{try{const blob=makePDF(kinds);saveBlob(`bludiste-${state.seed%10000}-${suffix}.pdf`,blob)}catch(e){console.error(e);setStatus('PDF se nepodařilo vytvořit: '+e.message,true)}},30);
 }
 
-function resetCrop(){$('zoom').value=1;$('px').value=0.5;$('py').value=0.5;syncOutputs()}
+function resetCrop(){state.cropRect={x:0,y:0,w:1,h:1};fitCropToShape()}
 // ---------- wiring
 function syncOutputs(){
   $('contrastV').textContent=fmt(+$('contrast').value,2)+'×';
@@ -766,16 +858,17 @@ function syncOutputs(){
   $('bgV').textContent=$('bg').disabled?'beze změny':fmt(+$('bg').value*100)+' %';
   $('vigV').textContent=+$('vig').value===0?'vypnuto':fmt(+$('vig').value*100)+' %';
   $('bsizeV').textContent=fmt(+$('bsize').value*100)+' %';
-  $('zoomV').textContent=fmt(+$('zoom').value,1)+'×';
-  $('pxV').textContent=fmt(+$('px').value*100)+' %';$('pyV').textContent=fmt(+$('py').value*100)+' %';
   $('colsV').textContent=$('cols').value;
+  $('dsizeV').textContent=fmt(+$('dsize').value*100,1)+' %';
   const b=+$('branch').value;$('branchV').textContent=b<0.34?'krátké':b<0.67?'střední':'dlouhé';
   document.querySelectorAll('[data-cols]').forEach(bt=>bt.setAttribute('aria-pressed',String(bt.dataset.cols===$('cols').value)));
 }
 let thumbTimer=0;
 function onSetting(){syncOutputs();clearTimeout(thumbTimer);thumbTimer=setTimeout(updateThumb,60);markStale()}
-['contrast','bright','sharp','maxcov','cols','branch','zoom','px','py','bg','vig','bsize'].forEach(id=>$(id).addEventListener('input',onSetting));
-['invert','fill','paper','orient'].forEach(id=>$(id).addEventListener('change',onSetting));
+['contrast','bright','sharp','maxcov','cols','branch','bg','vig','bsize','dsize'].forEach(id=>$(id).addEventListener('input',onSetting));
+['invert','paper','orient','ends','camo'].forEach(id=>$(id).addEventListener('change',onSetting));
+$('shape').addEventListener('change',()=>{fitCropToShape();onSetting()});
+['paper','orient'].forEach(id=>$(id).addEventListener('change',()=>{if($('shape').value==='paper'){fitCropToShape();updateThumb()}}));
 document.querySelectorAll('[data-cols]').forEach(bt=>bt.addEventListener('click',()=>{$('cols').value=bt.dataset.cols;onSetting()}));
 
 $('file').addEventListener('change',e=>{
@@ -788,41 +881,162 @@ $('file').addEventListener('change',e=>{
 $('rand').addEventListener('click',()=>{randomEmoji();resetCrop();state.seed=(Math.random()*1e9)>>>0;updateThumb();generate()});
 $('gen').addEventListener('click',generate);
 
-// ---------- brush field
-document.querySelectorAll('[data-brush]').forEach(bt=>bt.addEventListener('click',()=>{
-  state.brush=bt.dataset.brush;document.querySelectorAll('[data-brush]').forEach(b=>b.setAttribute('aria-pressed',String(b===bt)));
-  $('paint').classList.toggle('painting',state.brush!=='off')}));
+// ---------- crop + brush field
+const TOOL_HINT={off:'Vyber nástroj. Když je vypnutý, plochou jde normálně posouvat.',
+  crop:'Táhni za rohy nebo hrany rámečku, uvnitř rámeček posuneš. Jako ořez fotky v telefonu.',
+  erase:'Přejeď prstem přes to, co v obrázku nechceš, třeba obrazy na zdi. Smazaná místa zčervenají.',
+  keep:'Přejeď přes místa, která se nemají ztlumit. Chráněná místa zezelenají.'};
+function setTool(t){state.brush=t;document.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===t)));
+  $('paint').classList.toggle('painting',t!=='off');$('toolhint').textContent=TOOL_HINT[t];
+  $('cropBtns').style.display=t==='crop'?'':'none';$('brushOpts').style.display=(t==='erase'||t==='keep')?'':'none';renderPaint()}
+document.querySelectorAll('[data-tool]').forEach(bt=>bt.addEventListener('click',()=>setTool(bt.dataset.tool)));
 const tint=document.createElement('canvas');
+let view=null; // how the field maps to the photo: {mode, sx,sy,sw,sh, cssW,cssH}
 function renderPaint(){
-  const cv=$('paint');if(!state.src||!state.crop)return;const c=state.crop;
-  const wrapW=Math.max(120,cv.parentElement.clientWidth-14),maxH=window.innerHeight*0.6;
-  const k=Math.min(wrapW/c.sw,maxH/c.sh);const cssW=Math.round(c.sw*k),cssH=Math.round(c.sh*k);const dpr=Math.min(2,window.devicePixelRatio||1);
-  if(cv.width!==Math.round(cssW*dpr)||cv.height!==Math.round(cssH*dpr)){cv.width=Math.round(cssW*dpr);cv.height=Math.round(cssH*dpr)}
-  cv.style.width=cssW+'px';cv.style.height=cssH+'px';
-  const x=cv.getContext('2d');x.globalCompositeOperation='source-over';x.drawImage(state.src,c.sx,c.sy,c.sw,c.sh,0,0,cv.width,cv.height);
-  tint.width=cv.width;tint.height=cv.height;const tx=tint.getContext('2d');
-  for(const [layer,col] of [[state.erase,'rgba(225,35,60,0.6)'],[state.keep,'rgba(20,170,90,0.55)']]){
-    tx.globalCompositeOperation='source-over';tx.clearRect(0,0,tint.width,tint.height);
-    tx.drawImage(layer,c.sx,c.sy,c.sw,c.sh,0,0,tint.width,tint.height);
-    tx.globalCompositeOperation='source-in';tx.fillStyle=col;tx.fillRect(0,0,tint.width,tint.height);
-    x.drawImage(tint,0,0);}
+  const cv=$('paint');if(!state.src||!state.crop)return;
+  const cropMode=state.brush==='crop';const src=state.src;
+  const r=cropMode?{sx:0,sy:0,sw:src.width,sh:src.height}:state.crop;
+  const wrapW=Math.max(120,cv.parentElement.clientWidth-14),maxH=window.innerHeight*0.55;
+  const k=Math.min(wrapW/r.sw,maxH/r.sh);const cssW=Math.round(r.sw*k),cssH=Math.round(r.sh*k);const dpr=Math.min(2,window.devicePixelRatio||1);
+  const pw=Math.round(cssW*dpr),ph=Math.round(cssH*dpr);if(cv.width!==pw||cv.height!==ph){cv.width=pw;cv.height=ph}
+  cv.style.width=cssW+'px';cv.style.height=cssH+'px';view={sx:r.sx,sy:r.sy,sw:r.sw,sh:r.sh,cssW,cssH};
+  const x=cv.getContext('2d');x.globalCompositeOperation='source-over';
+  if(cropMode){
+    x.imageSmoothingEnabled=true;x.drawImage(state.srcGray,0,0,pw,ph);
+    const c=state.cropRect;const X=c.x*pw,Y=c.y*ph,Wd=c.w*pw,Hd=c.h*ph;
+    x.fillStyle='rgba(16,22,42,0.6)';x.beginPath();x.rect(0,0,pw,ph);x.rect(X,Y,Wd,Hd);x.fill('evenodd');
+    x.strokeStyle='#fff';x.lineWidth=2*dpr;x.strokeRect(X,Y,Wd,Hd);
+    x.strokeStyle='rgba(255,255,255,0.45)';x.lineWidth=1*dpr;x.beginPath();
+    for(let i=1;i<3;i++){x.moveTo(X+Wd*i/3,Y);x.lineTo(X+Wd*i/3,Y+Hd);x.moveTo(X,Y+Hd*i/3);x.lineTo(X+Wd,Y+Hd*i/3)}x.stroke();
+    const L=Math.min(22*dpr,Wd/3,Hd/3);x.strokeStyle='#FFE13A';x.lineWidth=5*dpr;x.lineCap='square';x.beginPath();
+    for(const [px,py,dx,dy] of [[X,Y,1,1],[X+Wd,Y,-1,1],[X,Y+Hd,1,-1],[X+Wd,Y+Hd,-1,-1]]){x.moveTo(px+dx*L,py);x.lineTo(px,py);x.lineTo(px,py+dy*L)}x.stroke();
+    return;
+  }
+  // brush modes: the black-and-white picture exactly as the maze will use it
+  x.imageSmoothingEnabled=false;x.drawImage($('thumbGray'),0,0,pw,ph);x.imageSmoothingEnabled=true;
+  tint.width=pw;tint.height=ph;const tx=tint.getContext('2d');
+  for(const [layer,col] of [[state.erase,'rgba(225,35,60,0.5)'],[state.keep,'rgba(20,170,90,0.45)']]){
+    tx.globalCompositeOperation='source-over';tx.clearRect(0,0,pw,ph);
+    tx.drawImage(layer,r.sx,r.sy,r.sw,r.sh,0,0,pw,ph);
+    tx.globalCompositeOperation='source-in';tx.fillStyle=col;tx.fillRect(0,0,pw,ph);x.drawImage(tint,0,0);}
 }
-let painting=false,lastPt=null,rafPending=false,brushTimer=0;
-function toSrc(e){const r=$('paint').getBoundingClientRect(),c=state.crop;
-  return [c.sx+(e.clientX-r.left)/r.width*c.sw, c.sy+(e.clientY-r.top)/r.height*c.sh]}
+let painting=false,lastPt=null,rafPending=false,brushTimer=0,cropDrag=null;
+const fieldPos=e=>{const r=$('paint').getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height,r]};
+function toSrc(e){const [u,v]=fieldPos(e);return [view.sx+u*view.sw,view.sy+v*view.sh]}
+function scheduleThumb(){clearTimeout(brushTimer);brushTimer=setTimeout(updateThumb,160);markStale()}
 function stroke(a,b){const rad=+$('bsize').value*state.crop.sw/2;
   const paint=state.brush==='erase'?state.erase:state.keep, wipe=state.brush==='erase'?state.keep:state.erase;
   for(const [cv,mode] of [[paint,'source-over'],[wipe,'destination-out']]){const x=cv.getContext('2d');
     x.globalCompositeOperation=mode;x.strokeStyle='#000';x.fillStyle='#000';x.lineWidth=rad*2;x.lineCap='round';
     x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke();x.beginPath();x.arc(b[0],b[1],rad,0,Math.PI*2);x.fill();x.globalCompositeOperation='source-over'}
   if(!rafPending){rafPending=true;requestAnimationFrame(()=>{rafPending=false;renderPaint()})}
-  clearTimeout(brushTimer);brushTimer=setTimeout(updateThumb,180);
-  markStale();}
-$('paint').addEventListener('pointerdown',e=>{if(state.brush==='off'||!state.crop)return;e.preventDefault();painting=true;$('paint').setPointerCapture(e.pointerId);lastPt=toSrc(e);stroke(lastPt,lastPt)});
-$('paint').addEventListener('pointermove',e=>{if(!painting)return;e.preventDefault();const p=toSrc(e);stroke(lastPt,p);lastPt=p});
-['pointerup','pointercancel'].forEach(n=>$('paint').addEventListener(n,()=>{painting=false}));
+  scheduleThumb();}
+function cropDown(e){const [u,v,r]=fieldPos(e);const c=state.cropRect;const tu=26/r.width,tv=26/r.height;
+  const nearL=Math.abs(u-c.x)<tu,nearR=Math.abs(u-(c.x+c.w))<tu,nearT=Math.abs(v-c.y)<tv,nearB=Math.abs(v-(c.y+c.h))<tv;
+  const inX=u>c.x-tu&&u<c.x+c.w+tu,inY=v>c.y-tv&&v<c.y+c.h+tv;
+  let mode={l:nearL&&inY,r:nearR&&inY&&!nearL,t:nearT&&inX,b:nearB&&inX&&!nearT};
+  if(!mode.l&&!mode.r&&!mode.t&&!mode.b){if(u>c.x&&u<c.x+c.w&&v>c.y&&v<c.y+c.h)mode={move:true};else return false}
+  cropDrag={mode,u0:u,v0:v,c0:Object.assign({},c)};return true}
+function cropMove(e){const [u,v]=fieldPos(e);const d=cropDrag,c0=d.c0,du=u-d.u0,dv=v-d.v0,mn=0.06;let {x,y,w,h}=c0;
+  if(d.mode.move){x=Math.min(1-w,Math.max(0,x+du));y=Math.min(1-h,Math.max(0,y+dv))}
+  else{let x2=x+w,y2=y+h;
+    if(d.mode.l)x=Math.min(x2-mn,Math.max(0,x+du)); if(d.mode.r)x2=Math.max(x+mn,Math.min(1,x2+du));
+    if(d.mode.t)y=Math.min(y2-mn,Math.max(0,y+dv)); if(d.mode.b)y2=Math.max(y+mn,Math.min(1,y2+dv));
+    w=x2-x;h=y2-y;
+    const A=shapeAspect(P());
+    if(A){const an=normAspect(A);const m=d.mode;
+      if(m.l||m.r)h=w/an;else w=h*an;
+      if(m.t)y=c0.y+c0.h-h;else if(!m.b)y=c0.y+c0.h/2-h/2;
+      if(m.l)x=c0.x+c0.w-w;else if(!m.r)x=c0.x+c0.w/2-w/2;
+      if(x<-1e-6||y<-1e-6||x+w>1+1e-6||y+h>1+1e-6||w<mn||h<mn)return;}
+  }
+  state.cropRect={x,y,w,h};
+  if(!rafPending){rafPending=true;requestAnimationFrame(()=>{rafPending=false;renderPaint()})}
+  scheduleThumb();}
+$('paint').addEventListener('pointerdown',e=>{if(state.brush==='off'||!state.crop||!view)return;
+  if(state.brush==='crop'){if(!cropDown(e))return}else{lastPt=toSrc(e);stroke(lastPt,lastPt)}
+  e.preventDefault();painting=true;$('paint').setPointerCapture(e.pointerId)});
+$('paint').addEventListener('pointermove',e=>{if(!painting)return;e.preventDefault();
+  if(state.brush==='crop')cropMove(e);else{const p=toSrc(e);stroke(lastPt,p);lastPt=p}});
+['pointerup','pointercancel'].forEach(n=>$('paint').addEventListener(n,()=>{painting=false;cropDrag=null}));
 $('clearMask').addEventListener('click',()=>{if(!state.src)return;for(const c of [state.erase,state.keep])c.getContext('2d').clearRect(0,0,c.width,c.height);updateThumb();markStale()});
-window.addEventListener('resize',()=>{clearTimeout(thumbTimer);thumbTimer=setTimeout(updateThumb,150)});
+$('fullCrop').addEventListener('click',()=>{resetCrop();updateThumb();markStale()});
+// crop to where the picture actually is (after contrast, erasing and background dimming)
+$('autoCrop').addEventListener('click',()=>{
+  if(!state.src)return;const keep=state.cropRect;state.cropRect={x:0,y:0,w:1,h:1};
+  const p=P();p.shape='image';const n=160,asp=state.src.width/state.src.height;const cw=asp>=1?n:Math.max(8,Math.round(n*asp)),ch=asp>=1?Math.max(8,Math.round(n/asp)):n;
+  const t=computeTarget(p,cw,ch);const thr=0.12*p.maxcov;
+  // ignore rows/columns with only a few dark specks
+  const colOn=new Array(cw).fill(0),rowOn=new Array(ch).fill(0);
+  for(let y=0;y<ch;y++)for(let x=0;x<cw;x++)if(t[y*cw+x]>thr){colOn[x]++;rowOn[y]++}
+  const minC=Math.max(1,ch*0.01),minR=Math.max(1,cw*0.01);
+  let x0=colOn.findIndex(v=>v>=minC),x1=cw-1-[...colOn].reverse().findIndex(v=>v>=minC),y0=rowOn.findIndex(v=>v>=minR),y1=ch-1-[...rowOn].reverse().findIndex(v=>v>=minR);
+  if(x0<0||y0<0){state.cropRect=keep;setStatus('Na fotce jsem nenašel nic tmavého k oříznutí.',true);return}
+  const mx=Math.round(cw*0.01),my=Math.round(ch*0.01);x0=Math.max(0,x0-mx);y0=Math.max(0,y0-my);x1=Math.min(cw-1,x1+mx);y1=Math.min(ch-1,y1+my);
+  let r={x:x0/cw,y:y0/ch,w:(x1-x0+1)/cw,h:(y1-y0+1)/ch};
+  const A=shapeAspect(P());if(A){const an=normAspect(A);const cx=r.x+r.w/2,cy=r.y+r.h/2;let w=r.w,h=r.h;
+    if(w/h<an)w=h*an;else h=w/an;if(w>1){w=1;h=w/an}if(h>1){h=1;w=h*an}
+    r={x:Math.min(1-w,Math.max(0,cx-w/2)),y:Math.min(1-h,Math.max(0,cy-h/2)),w,h}}
+  state.cropRect=r;updateThumb();markStale();
+});
+window.addEventListener('resize',()=>{clearTimeout(thumbTimer);thumbTimer=setTimeout(()=>{updateThumb();if(drawInit)sizeDraw()},150)});
+
+// ---------- shape of the maze
+function shapeAspect(p){
+  if(p.shape==='square')return 1; if(p.shape==='34')return 3/4; if(p.shape==='43')return 4/3;
+  if(p.shape==='paper'){const [a,b]=PAPERS[p.paper];const pw0=a-2*MARGIN,ph0=b-2*MARGIN;return paperOrient(p)==='p'?pw0/ph0:ph0/pw0}
+  return null;
+}
+function paperOrient(p){if(p.orient!=='auto')return p.orient;const c=state.cropRect;const ia=state.src?state.src.width*c.w/(state.src.height*c.h):1;return ia>1?'l':'p'}
+const normAspect=A=>A*state.src.height/state.src.width; // crop w/h in 0..1 units
+function fitCropToShape(){
+  if(!state.src)return;const A=shapeAspect(P());if(!A)return;const an=normAspect(A);const c=state.cropRect;
+  const cx=c.x+c.w/2,cy=c.y+c.h/2;let w=c.w,h=c.h;
+  if(w/h>an)w=h*an;else h=w/an;
+  if(w>1){w=1;h=w/an}if(h>1){h=1;w=h*an}
+  state.cropRect={x:Math.min(1-w,Math.max(0,cx-w/2)),y:Math.min(1-h,Math.max(0,cy-h/2)),w,h};
+}
+
+// ---------- drawing and text
+const dcv=$('draw');let dtool='pen',dHist=[],dDown=false,dLast=null,drawInit=false,drawDirty=false,dTimer=0;
+function initDraw(){const A=shapeAspect(P())||1;const W=A>=1?1200:Math.round(1200*A),H=A>=1?Math.round(1200/A):1200;
+  dcv.width=W;dcv.height=H;const x=dcv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,W,H);dHist=[];drawInit=true;drawDirty=false;sizeDraw()}
+function sizeDraw(){const wrapW=Math.max(120,dcv.parentElement.clientWidth-14),maxH=window.innerHeight*0.55;
+  const k=Math.min(wrapW/dcv.width,maxH/dcv.height);dcv.style.width=Math.round(dcv.width*k)+'px';dcv.style.height=Math.round(dcv.height*k)+'px'}
+function setDTool(t){dtool=t;document.querySelectorAll('[data-dtool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.dtool===t)));dcv.classList.toggle('painting',t!=='off')}
+document.querySelectorAll('[data-dtool]').forEach(b=>b.addEventListener('click',()=>setDTool(b.dataset.dtool)));
+function snapshot(){dHist.push(dcv.getContext('2d').getImageData(0,0,dcv.width,dcv.height));if(dHist.length>15)dHist.shift()}
+function useDrawing(){
+  const c=document.createElement('canvas');c.width=dcv.width;c.height=dcv.height;c.getContext('2d').drawImage(dcv,0,0);
+  const same=state.isDrawing&&state.src&&state.src.width===c.width&&state.src.height===c.height;
+  state.src=c;state.srcName='kresba';state.isDrawing=true;
+  if(same)makeGray();else{newLayers();fitCropToShape()}
+  updateThumb();markStale();
+}
+function scheduleDrawing(){clearTimeout(dTimer);dTimer=setTimeout(useDrawing,220)}
+const dPos=e=>{const r=dcv.getBoundingClientRect();return [(e.clientX-r.left)/r.width*dcv.width,(e.clientY-r.top)/r.height*dcv.height]};
+function dLine(a,b){const x=dcv.getContext('2d');x.strokeStyle=x.fillStyle=dtool==='eraser'?'#fff':'#000';const w=+$('dsize').value*Math.max(dcv.width,dcv.height);
+  x.lineWidth=w;x.lineCap='round';x.lineJoin='round';x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke();x.beginPath();x.arc(b[0],b[1],w/2,0,Math.PI*2);x.fill()}
+dcv.addEventListener('pointerdown',e=>{if(dtool==='off')return;e.preventDefault();dDown=true;dcv.setPointerCapture(e.pointerId);snapshot();dLast=dPos(e);dLine(dLast,dLast);drawDirty=true;scheduleDrawing()});
+dcv.addEventListener('pointermove',e=>{if(!dDown)return;e.preventDefault();const p=dPos(e);dLine(dLast,p);dLast=p;scheduleDrawing()});
+['pointerup','pointercancel'].forEach(n=>dcv.addEventListener(n,()=>{if(dDown){dDown=false;scheduleDrawing()}}));
+$('dUndo').addEventListener('click',()=>{const im=dHist.pop();if(!im)return;dcv.getContext('2d').putImageData(im,0,0);useDrawing()});
+$('dClear').addEventListener('click',()=>{snapshot();const x=dcv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,dcv.width,dcv.height);useDrawing()});
+$('dText').addEventListener('click',()=>{
+  const txt=$('dtext').value.trim();if(!txt){$('dtext').focus();return}
+  snapshot();const x=dcv.getContext('2d');const lines=txt.split(/\n+/);const tpl=$('dfont').value;
+  x.font=tpl.replace('1px','100px');const maxW=Math.max(...lines.map(l=>x.measureText(l).width))||1;
+  let size=Math.min(100*dcv.width*0.92/maxW, dcv.height*0.9/(lines.length*1.12));
+  x.font=tpl.replace('1px',Math.floor(size)+'px');x.fillStyle='#000';x.textAlign='center';x.textBaseline='middle';
+  const lh=size*1.12,top=dcv.height/2-lh*(lines.length-1)/2;
+  lines.forEach((l,i)=>x.fillText(l,dcv.width/2,top+i*lh));drawDirty=true;useDrawing();
+});
+$('drawBtn').addEventListener('click',()=>{
+  const panel=$('drawPanel');panel.hidden=false;
+  if(!drawInit)initDraw();else sizeDraw();
+  setDTool('pen');if(drawDirty)useDrawing();
+  panel.scrollIntoView({behavior:'smooth',block:'start'});
+});
 
 // ---------- sliders: change only on a deliberate sideways drag, so scrolling never moves them
 document.querySelectorAll('.field').forEach(f=>{
@@ -880,6 +1094,7 @@ $('pdfPuzzle').addEventListener('click',()=>exportPDF(['puzzle'],'zadani'));
 $('pdfSolution').addEventListener('click',()=>exportPDF(['solution'],'reseni'));
 $('pdfBoth').addEventListener('click',()=>exportPDF(['puzzle','solution'],'zadani-a-reseni'));
 
+setTool('off');
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!inClaude&&!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
